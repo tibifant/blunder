@@ -27,6 +27,20 @@ struct chess_piece
 
   chess_piece() = default;
   chess_piece(const chess_piece_type type, const bool isWhite) : piece(type), isWhite(isWhite), lastWasDoubleStep(false) {}
+  chess_piece(const chess_piece &) = default;
+  chess_piece(chess_piece &&move) noexcept : piece(move.piece), isWhite(move.isWhite), lastWasDoubleStep(lastWasDoubleStep) { move.piece = cpT_none; }
+
+  chess_piece &operator = (const chess_piece &) = default;
+
+  chess_piece &operator = (chess_piece &&move) noexcept
+  {
+    piece = move.piece;
+    isWhite = move.isWhite;
+    lastWasDoubleStep = move.lastWasDoubleStep;
+
+    move.piece = cpT_none;
+    return *this;
+  }
 
   bool operator==(const chess_piece other) const
   {
@@ -90,4 +104,5 @@ struct chess_move
 static_assert(sizeof(chess_move) == sizeof(uint16_t));
 
 lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves);
+chess_board perform_move(const chess_board &board, const chess_move move);
 

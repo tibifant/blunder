@@ -86,21 +86,7 @@ int64_t lsGetCurrentTimeNs()
 
 uint64_t lsGetRand()
 {
-#ifdef LS_PLATFORM_WINDOWS
-  LS_ALIGN(16) thread_local static uint64_t last[2] = { (uint64_t)lsGetCurrentTimeNs(), __rdtsc() };
-  LS_ALIGN(16) thread_local static uint64_t last2[2] = { ~__rdtsc(), ~(uint64_t)lsGetCurrentTimeNs() };
-
-  const __m128i a = _mm_load_si128(reinterpret_cast<__m128i *>(last));
-  const __m128i b = _mm_load_si128(reinterpret_cast<__m128i *>(last2));
-
-  const __m128i r = _mm_aesdec_si128(a, b);
-
-  _mm_store_si128(reinterpret_cast<__m128i *>(last), b);
-  _mm_store_si128(reinterpret_cast<__m128i *>(last2), r);
-
-  return last[1] ^ last[0];
-#else
-  static uint64_t last[2] = { (uint64_t)lsGetCurrentTimeNs(), (uint64_t)lsGetCurrentTicks() };
+  static uint64_t last[2] = { (uint64_t)lsGetCurrentTimeNs(), (uint64_t)__rdtsc() };
 
   const uint64_t oldstate_hi = last[0];
   const uint64_t oldstate_lo = oldstate_hi * 6364136223846793005ULL + (last[1] | 1);
@@ -116,7 +102,6 @@ uint64_t lsGetRand()
   const uint32_t lo = (xorshifted_lo >> rot_lo) | (xorshifted_lo << (uint32_t)((-(int32_t)rot_lo) & 31));
 
   return ((uint64_t)hi << 32) | lo;
-#endif
 }
 
 uint64_t lsGetRand(rand_seed &seed)

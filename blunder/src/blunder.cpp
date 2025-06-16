@@ -19,7 +19,7 @@ lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, con
   {
     const vec2i8 targetPos = startPos + vec2i8(i) * dir;
 
-    if (targetPos.x > 0 && targetPos.x < BoardWidth && targetPos.y > 0 && targetPos.y < BoardWidth && board[targetPos].isWhite != board.isWhitesTurn)
+    if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
       LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
   }
 
@@ -45,7 +45,7 @@ lsResult get_all_valid_king_moves(const chess_board &board, small_list<chess_mov
         {
           const vec2i8 targetPos = startPos + KingPossibleTargetPos[j];
 
-          if (targetPos.x > 0 && targetPos.x < BoardWidth && targetPos.y > 0 && targetPos.y < BoardWidth && board[targetPos].isWhite != board.isWhitesTurn)
+          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
             LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
         }
       }
@@ -150,7 +150,7 @@ lsResult get_all_valid_knight_moves(const chess_board &board, small_list<chess_m
         {
           const vec2i8 targetPos = startPos + TargetDir[i];
 
-          if (targetPos.x > 0 && targetPos.x < BoardWidth && targetPos.y > 0 && targetPos.y < BoardWidth && board[targetPos].isWhite != board.isWhitesTurn)
+          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
             LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
         }
       }
@@ -180,7 +180,7 @@ lsResult get_all_valid_pawn_moves(const chess_board &board, small_list<chess_mov
         {
           const vec2i8 targetPos = startPos + vec2i8(2) * dir;
 
-          if (targetPos.x > 0 && targetPos.x < BoardWidth && targetPos.y > 0 && targetPos.y < BoardWidth && board[targetPos].isWhite != board.isWhitesTurn)
+          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
           {
             LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
           }
@@ -188,7 +188,7 @@ lsResult get_all_valid_pawn_moves(const chess_board &board, small_list<chess_mov
 
         const vec2i8 targetPos = startPos + dir;
 
-        if (targetPos.x > 0 && targetPos.x < BoardWidth && targetPos.y > 0 && targetPos.y < BoardWidth && board[targetPos].isWhite != board.isWhitesTurn)
+        if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
           LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
       }
     }
@@ -215,10 +215,46 @@ epilogue:
   return result;
 }
 
+chess_board perform_move(const chess_board &board, const chess_move move)
+{
+  chess_board ret = board;
+  ret.isWhitesTurn = (uint8_t)!board.isWhitesTurn;
+
+  chess_piece &origin = ret[vec2i8(move.startX, move.startY)];
+  chess_piece &target = ret[vec2i8(move.targetX, move.targetY)];
+  lsAssert(origin.isWhite == board.isWhitesTurn);
+
+  if (target.piece == cpT_king)
+  {
+    size_t kingCount = 0;
+
+    for (size_t i = 0; i < LS_ARRAYSIZE(ret.board); i++)
+      kingCount += (size_t)(ret.board[i] == target);
+
+    if (kingCount == 1)
+    {
+      if (target.isWhite)
+        ret.hasBlackWon = true;
+      else
+        ret.hasWhiteWon = true;
+    }
+  }
+
+  if (origin.piece == cpT_pawn)
+  {
+    if (((move.startY == 1 && origin.isWhite) || (move.startY == 6 && !origin.isWhite)) && lsAbs(move.startY - move.targetY) == 2)
+      origin.lastWasDoubleStep = true;
+  }
+
+  target = std::move(origin);
+
+  return ret;
+}
+
 inline void place_symmetric_last_row(chess_board &board, const chess_piece_type piece, const int8_t x)
 {
   board[vec2i8(x, 0)] = chess_piece(piece, true);
-  board[vec2i8(x, 7)] = chess_piece(piece, false);
+  board[vec2i8(x, BoardWidth - 1)] = chess_piece(piece, false);
 }
 
 chess_board chess_board::get_starting_point()
@@ -227,12 +263,12 @@ chess_board chess_board::get_starting_point()
   board.isWhitesTurn = true;
 
   const chess_piece_type lastRow[] = { cpT_rook, cpT_knight, cpT_bishop, cpT_queen, cpT_king, cpT_bishop, cpT_knight, cpT_rook };
-  static_assert(LS_ARRAYSIZE(lastRow) == 8);
+  static_assert(LS_ARRAYSIZE(lastRow) == BoardWidth);
 
-  for (int8_t i = 0; i < 8; i++)
+  for (int8_t i = 0; i < BoardWidth; i++)
   {
     board[vec2i8(i, 1)] = chess_piece(cpT_pawn, true);
-    board[vec2i8(i, 6)] = chess_piece(cpT_pawn, false);
+    board[vec2i8(i, BoardWidth - 2)] = chess_piece(cpT_pawn, false);
 
     place_symmetric_last_row(board, lastRow[i], i);
   }
