@@ -15,12 +15,15 @@ lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, con
 
   lsAssert(startPos.x >= 0 && startPos.x < BoardWidth && startPos.y >= 0 && startPos.y < BoardWidth);
 
-  for (int8_t i = 0; i < 8; i++)
+  for (int8_t i = 0; i < BoardWidth; i++)
   {
     const vec2i8 targetPos = startPos + vec2i8(i) * dir;
 
     if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
       LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
+
+    if (board[targetPos].piece)
+      break;
   }
 
 epilogue:
