@@ -127,10 +127,7 @@ int32_t main(const int32_t argc, const char **pArgv)
 
 crow::response handle_get_board(const crow::request &req)
 {
-  auto body = crow::json::load(req.body);
-
-  if (!body)
-    return crow::response(crow::status::BAD_REQUEST);
+  (void)req;
 
   crow::json::wvalue ret;
 
@@ -158,10 +155,7 @@ crow::response handle_get_board(const crow::request &req)
 
 crow::response handle_get_valid_moves(const crow::request &req)
 {
-  auto body = crow::json::load(req.body);
-
-  if (!body)
-    return crow::response(crow::status::BAD_REQUEST);
+  (void)req;
 
   crow::json::wvalue ret;
 
