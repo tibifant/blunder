@@ -57,12 +57,11 @@ namespace asio
 crow::response handle_get_board(const crow::request &req);
 crow::response handle_get_valid_moves(const crow::request &req);
 crow::response handle_move(const crow::request &req);
+crow::response handle_restart(const crow::request &req);
 
 //////////////////////////////////////////////////////////////////////////
 
-static std::atomic<bool> _IsRunning = true;
-
-chess_board WebBoard;
+static chess_board _CurrentBoard = chess_board::get_starting_point();
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -103,8 +102,6 @@ int32_t main(const int32_t argc, const char **pArgv)
 
   print("Blunder WebIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
-  WebBoard = WebBoard.get_starting_point();
-
   {
     crow::App<crow::CORSHandler> app;
 
@@ -118,10 +115,9 @@ int32_t main(const int32_t argc, const char **pArgv)
     CROW_ROUTE(app, "/get_board").methods(crow::HTTPMethod::POST)([](const crow::request &req) { return handle_get_board(req); });
     CROW_ROUTE(app, "/get_valid_moves").methods(crow::HTTPMethod::POST)([](const crow::request &req) { return handle_get_valid_moves(req); });
     CROW_ROUTE(app, "/move").methods(crow::HTTPMethod::POST)([](const crow::request &req) { return handle_move(req); });
+    CROW_ROUTE(app, "/restart").methods(crow::HTTPMethod::POST)([](const crow::request &req) { return handle_restart(req); });
 
     app.port(21110).multithreaded().run();
-
-    _IsRunning = false;
   }
 
   return EXIT_SUCCESS;
@@ -138,9 +134,9 @@ crow::response handle_get_board(const crow::request &req)
 
   crow::json::wvalue ret;
 
-  ret["isWhitesTurn"] = WebBoard.isWhitesTurn;
-  ret["hasBlackWon"] = WebBoard.hasBlackWon;
-  ret["hasWhiteWon"] = WebBoard.hasWhiteWon;
+  ret["isWhitesTurn"] = _CurrentBoard.isWhitesTurn;
+  ret["hasBlackWon"] = _CurrentBoard.hasBlackWon;
+  ret["hasWhiteWon"] = _CurrentBoard.hasWhiteWon;
 
   const char pieceChars[] = " KQRBNP";
 
@@ -148,7 +144,7 @@ crow::response handle_get_board(const crow::request &req)
   {
     for (int8_t x = 0; x < BoardWidth; x++)
     {
-      const chess_piece piece = WebBoard[vec2i8(x, y)];
+      const chess_piece piece = _CurrentBoard[vec2i8(x, y)];
       if (piece.piece != cpT_none)
       {
         ret[x][y]["piece"] = pieceChars[piece.piece];
@@ -170,7 +166,7 @@ crow::response handle_get_valid_moves(const crow::request &req)
   crow::json::wvalue ret;
 
   small_list<chess_move> moves;
-  if (LS_FAILED(get_all_valid_moves(WebBoard, moves)))
+  if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
   uint16_t i = 0;
@@ -182,7 +178,9 @@ crow::response handle_get_valid_moves(const crow::request &req)
     ret[i]["destinationX"] = move.targetX;
     ret[i]["destinationY"] = move.targetY;
     ret[i]["isPromotion"] = move.isPromotion;
-    ret[i]["isPromotionToQueen"] = move.isPromotedToQueen;
+
+    if (move.isPromotion)
+      ret[i]["isPromotionToQueen"] = move.isPromotedToQueen;
 
     i++;
   }
@@ -194,7 +192,7 @@ crow::response handle_move(const crow::request &req)
 {
   auto body = crow::json::load(req.body);
 
-  if (!body || !body.has("originX") || !body.has("originY") || !body.has("destinationX") || !body.has("destinationY") || !body.has("isPromotion") || !body.has("isPromotionToQueen"))
+  if (!body || !body.has("originX") || !body.has("originY") || !body.has("destinationX") || !body.has("destinationY") || !body.has("isPromotion"))
     return crow::response(crow::status::BAD_REQUEST);
 
   const int8_t originX = (int8_t)(body["originX"].i());
@@ -202,17 +200,23 @@ crow::response handle_move(const crow::request &req)
   const int8_t destX = (int8_t)(body["destinationX"].i());
   const int8_t destY = (int8_t)(body["destinationY"].i());
 
-
   if (originX <= 0 || originX > BoardWidth || originY <= 0 || originY > BoardWidth || destX <= 0 || destX > BoardWidth || destY <= 0 || destY > BoardWidth)
     return crow::response(crow::status::BAD_REQUEST);
 
   small_list<chess_move> moves;
-  if (LS_FAILED(get_all_valid_moves(WebBoard, moves)))
+  if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
   chess_move chosenMove(vec2i8(originX, originY), vec2i8(destX, destY));
   chosenMove.isPromotion = body["isPromotion"].b();
-  chosenMove.isPromotedToQueen = body["isPromotionToQueen"].b();
+
+  if (chosenMove.isPromotion)
+  {
+    if (!body.has("isPromotionToQueen"))
+      return crow::response(crow::status::BAD_REQUEST);
+
+    chosenMove.isPromotedToQueen = body["isPromotionToQueen"].b();
+  }
 
   bool isValid = false;
 
@@ -229,16 +233,28 @@ crow::response handle_move(const crow::request &req)
     return crow::response(crow::status::BAD_REQUEST);
 
   // Perform move.
-  WebBoard = perform_move(WebBoard, chosenMove);
+  _CurrentBoard = perform_move(_CurrentBoard, chosenMove);
 
   // AI move.
   {
-    if (LS_FAILED(get_all_valid_moves(WebBoard, moves)))
+    if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
       return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
     const size_t moveIdx = lsGetRand() % moves.count;
-    WebBoard = perform_move(WebBoard, moves[moveIdx]);
+    _CurrentBoard = perform_move(_CurrentBoard, moves[moveIdx]);
   }
+
+  return crow::response(crow::status::OK);
+}
+
+crow::response handle_restart(const crow::request &req)
+{
+  auto body = crow::json::load(req.body);
+
+  if (!body || !body.has("type") || body["type"].s() == "default")
+    _CurrentBoard = chess_board::get_starting_point();
+  else
+    return crow::response(crow::status::NOT_FOUND);
 
   return crow::response(crow::status::OK);
 }
