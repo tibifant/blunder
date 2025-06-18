@@ -9,6 +9,17 @@ constexpr vec2i8 BottomLeftRelative = vec2i8(-1, 1);
 constexpr vec2i8 BottomRelative = vec2i8(0, 1);
 constexpr vec2i8 BottomRightRelative = vec2i8(1, 1);
 
+lsResult add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, small_list<chess_move> &moves)
+{
+  lsResult result = lsR_Success;
+
+  if (destination.x >= 0 && destination.x < BoardWidth && destination.y >= 0 && destination.y < BoardWidth && (!board[destination].piece || board[destination].isWhite != board.isWhitesTurn))
+    LS_ERROR_CHECK(list_add(&moves, chess_move(origin, destination)));
+
+epilogue:
+  return result;
+}
+
 lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, const vec2i8 dir, small_list<chess_move> &moves)
 {
   lsResult result = lsR_Success;
@@ -19,8 +30,7 @@ lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, con
   {
     const vec2i8 targetPos = startPos + vec2i8(i) * dir;
 
-    if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
-      LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
+    LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
 
     if (board[targetPos].piece)
       break;
@@ -45,12 +55,7 @@ lsResult get_all_valid_king_moves(const chess_board &board, small_list<chess_mov
         constexpr vec2i8 KingPossibleTargetPos[] = { TopLeftRelative, TopRelative, TopRightRelative, LeftRelative, RightRelative, BottomLeftRelative, BottomRelative, BottomRightRelative };
 
         for (size_t j = 0; j < LS_ARRAYSIZE(KingPossibleTargetPos); j++)
-        {
-          const vec2i8 targetPos = startPos + KingPossibleTargetPos[j];
-
-          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
-            LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
-        }
+          LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + KingPossibleTargetPos[j]), board, moves));
       }
     }
   }
@@ -150,19 +155,13 @@ lsResult get_all_valid_knight_moves(const chess_board &board, small_list<chess_m
         constexpr vec2i8 TargetDir[] = { vec2i8(-2, -1), vec2i8(-1, -2), vec2i8(1, -2), vec2i8(2, -1), vec2i8(2, 1), vec2i8(1, 2), vec2i8(1, 2), vec2i8(-1, 2), vec2i8(-2, 1) };
 
         for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
-        {
-          const vec2i8 targetPos = startPos + TargetDir[i];
-
-          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
-            LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
-        }
+          LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves));
       }
     }
   }
 
 epilogue:
   return result;
-
 }
 
 lsResult get_all_valid_pawn_moves(const chess_board &board, small_list<chess_move> &moves)
@@ -178,21 +177,12 @@ lsResult get_all_valid_pawn_moves(const chess_board &board, small_list<chess_mov
       if (board[startPos].piece == cpT_pawn && board[startPos].isWhite == board.isWhitesTurn)
       {
         const vec2i8 dir = board[startPos].isWhite ? vec2i8(0, 1) : vec2i8(0, -1);
+        const vec2i8 targetPos = vec2i8(startPos + dir);
 
-        if ((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6))
-        {
-          const vec2i8 targetPos = startPos + vec2i8(2) * dir;
+        if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[targetPos].piece)
+          LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(targetPos + dir), board, moves));
 
-          if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
-          {
-            LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
-          }
-        }
-
-        const vec2i8 targetPos = startPos + dir;
-
-        if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth && (!board[targetPos].piece || board[targetPos].isWhite != board.isWhitesTurn))
-          LS_ERROR_CHECK(list_add(&moves, chess_move(startPos, targetPos)));
+        LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
       }
     }
   }
