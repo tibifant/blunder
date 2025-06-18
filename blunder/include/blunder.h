@@ -5,7 +5,7 @@
 
 enum chess_piece_type : uint8_t
 {
-  cpT_none,
+  cpT_none, // `none` has to always be 0 for easy checks.
 
   cpT_king,
   cpT_queen,

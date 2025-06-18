@@ -178,11 +178,15 @@ lsResult get_all_valid_pawn_moves(const chess_board &board, small_list<chess_mov
       {
         const vec2i8 dir = board[startPos].isWhite ? vec2i8(0, 1) : vec2i8(0, -1);
         const vec2i8 targetPos = vec2i8(startPos + dir);
+        const vec2i8 doubleStepTargetPos = targetPos + dir;
 
-        if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[targetPos].piece)
-          LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(targetPos + dir), board, moves));
+        if (!board[targetPos].piece)
+        {
+          if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[doubleStepTargetPos].piece)
+            LS_ERROR_CHECK(add_valid_move(startPos, doubleStepTargetPos, board, moves));
 
-        LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
+          LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
+        }
       }
     }
   }
