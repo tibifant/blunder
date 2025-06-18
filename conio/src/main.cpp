@@ -1,5 +1,6 @@
 #include "core.h"
 #include "blunder.h"
+#include "io.h"
 
 #include <conio.h>
 
@@ -7,19 +8,36 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input);
 void print_board(const chess_board &board);
 char read_char();
+lsResult read_start_position_from_file(const char *filename, chess_board &board);
+chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves);
 
 //////////////////////////////////////////////////////////////////////////
 
 int32_t main(const int32_t argc, char **pArgv)
 {
-  // Ignore Args for now.
-  (void)argc;
-  (void)pArgv;
-
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
+
+  chess_board board = chess_board::get_starting_point();
+  bool white_from_input = true;
+  bool black_from_input = false;
+
+  for (size_t i = 1; i < (size_t)argc; i++)
+  {
+    if (lsStringEquals("--play-white", pArgv[i]))
+      white_from_input = true;
+    else if (lsStringEquals("--play-black", pArgv[i]))
+      black_from_input = true;
+    else if (lsStringEquals("--ai-white", pArgv[i]))
+      white_from_input = false;
+    else if (lsStringEquals("--ai-black", pArgv[i]))
+      black_from_input = false;
+    else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
+      lsFail();
+  }
 
   // Set Working Directory.
   do
@@ -49,14 +67,34 @@ int32_t main(const int32_t argc, char **pArgv)
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
-  chess_board board = chess_board::get_starting_point();
   small_list<chess_move> moves;
+  print_board(board);
 
   while (true)
   {
-    print("\n");
-    print_board(board);
-    print("Specify Move: (e.g. e2e4)\n");
+    perform_move(board, moves, white_from_input);
+
+    if (board.hasWhiteWon)
+      break;
+
+    perform_move(board, moves, black_from_input);
+
+    if (board.hasBlackWon)
+      break;
+  }
+
+  print(board.hasBlackWon ? "Black" : "White", " has won the game!\n");
+
+  return EXIT_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves)
+{
+  while (true)
+  {
+    print("Specify Move: (e.g. e2e4) - You are playing as ", board.isWhitesTurn ? "white" : "black", '\n');
 
     const uint8_t originX = (uint8_t)(read_char() - 'a');
     const uint8_t originY = (uint8_t)(read_char() - '1');
@@ -79,7 +117,7 @@ int32_t main(const int32_t argc, char **pArgv)
     if (LS_FAILED(get_all_valid_moves(board, moves)))
     {
       print_error_line("Failed to retrieve moves. Aborting.");
-      return EXIT_FAILURE;
+      exit(EXIT_FAILURE);
     }
 
     print("\n");
@@ -131,34 +169,35 @@ int32_t main(const int32_t argc, char **pArgv)
       continue;
     }
 
+    return chosenMove.value();
+  }
+}
+
+void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input)
+{
+  if (from_input)
+  {
+    const chess_move move = get_move_from_input(board, moves);
+
     // Perform move.
-    board = perform_move(board, chosenMove.value());
-    print_board(board);
+    board = perform_move(board, move);
+  }
+  else // AI move.
+  {
+    print("Calculating AI Move... (lol)\n");
 
-    if (board.hasWhiteWon)
-      break;
-
-    // AI move.
+    if (LS_FAILED(get_all_valid_moves(board, moves)))
     {
-      print("Calculating AI Move... (lol)\n");
-
-      if (LS_FAILED(get_all_valid_moves(board, moves)))
-      {
-        print_error_line("Failed to retrieve moves. Aborting.");
-        return EXIT_FAILURE;
-      }
-
-      const size_t moveIdx = lsGetRand() % moves.count;
-      board = perform_move(board, moves[moveIdx]);
-
-      if (board.hasBlackWon)
-        break;
+      print_error_line("Failed to retrieve moves. Aborting.");
+      exit(EXIT_FAILURE);
     }
+
+    // Perform random move.
+    const size_t moveIdx = lsGetRand() % moves.count;
+    board = perform_move(board, moves[moveIdx]);
   }
 
-  print(board.hasBlackWon ? "Black" : "White", " has won the game!\n");
-
-  return EXIT_SUCCESS;
+  print_board(board);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -206,4 +245,97 @@ char read_char()
   const char c = (char)_getch();
   print(c);
   return c;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+bool is_lower_case(const char c)
+{
+  return 'a' <= c && c <= 'z';
+}
+
+lsResult read_start_position_from_file(const char *filename, chess_board &board)
+{
+  lsResult result = lsR_Success;
+
+  char *fileContents = nullptr;
+  size_t fileSize;
+
+  print_log_line("Trying to read starting Position from file: ", filename);
+
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+
+  {
+    vec2i8 currentPos = vec2i8(0, 7);
+
+    for (size_t i = 0; i < fileSize; i++)
+    {
+      chess_piece_type piece = cpT_none;
+      bool isWhite = false;;
+
+      switch (fileContents[i])
+      {
+      case '.':
+      case ' ':
+        piece = cpT_none;
+        break;
+
+      case 'K':
+      case 'k':
+        piece = cpT_king;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case 'Q':
+      case 'q':
+        piece = cpT_queen;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case 'N':
+      case 'n':
+        piece = cpT_knight;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case 'B':
+      case 'b':
+        piece = cpT_bishop;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case 'R':
+      case 'r':
+        piece = cpT_rook;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case 'P':
+      case 'p':
+        piece = cpT_pawn;
+        isWhite = is_lower_case(fileContents[i]);
+        break;
+
+      case '\r':
+        continue;
+
+      case '\n':
+        currentPos.x = 0;
+        currentPos.y--;
+        continue;
+
+      default:
+        print_error_line("Unexpected Token in file: ", fileContents[i]);
+        lsFail();
+      }
+
+      lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
+
+      board[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
+      currentPos.x++;
+    }
+  }
+
+epilogue:
+  return result;
 }
