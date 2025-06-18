@@ -152,7 +152,7 @@ lsResult get_all_valid_knight_moves(const chess_board &board, small_list<chess_m
 
       if (board[startPos].piece == cpT_knight && board[startPos].isWhite == board.isWhitesTurn)
       {
-        constexpr vec2i8 TargetDir[] = { vec2i8(-2, -1), vec2i8(-1, -2), vec2i8(1, -2), vec2i8(2, -1), vec2i8(2, 1), vec2i8(1, 2), vec2i8(1, 2), vec2i8(-1, 2), vec2i8(-2, 1) };
+        constexpr vec2i8 TargetDir[] = { vec2i8(-2, -1), vec2i8(-1, -2), vec2i8(1, -2), vec2i8(2, -1), vec2i8(2, 1), vec2i8(1, 2), vec2i8(-1, 2), vec2i8(-2, 1) };
 
         for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
           LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves));
