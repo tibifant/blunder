@@ -37,7 +37,7 @@ inline bool is_check_diagonal(const chess_board &board, const vec2i8 pos, const 
 
   for (vec2i8 t = pos; t.x >= 0 && t.x < BoardWidth && t.y >= 0 && t.y < BoardWidth; t += dir)
   {
-    const chess_piece p = board[dir];
+    const chess_piece p = board[t];
 
     if (p.piece)
     {
@@ -95,7 +95,7 @@ bool is_check_for_position(const chess_board &board, const vec2i8 pos, const boo
   {
     const vec2i8 target = pos + TargetDir[i];
 
-    if (target.x >= 0 && target.y < BoardWidth)
+    if (target.x >= 0 && target.x < BoardWidth && target.y >= 0 && target.y < BoardWidth)
     {
       const chess_piece p = board[target];
 
@@ -229,8 +229,8 @@ __forceinline lsResult add_castle_moves_from(const chess_board &board, small_lis
 
   if (king.isWhite == board.isWhitesTurn && !king.hasMoved)
   {
-    const vec2i8 rookPosRight = king.isWhite ? vec2i8(0, 0) : vec2i8(0, 7);
-    const vec2i8 rookPosLeft = king.isWhite ? vec2i8(7, 0) : vec2i8(7, 7);
+    const vec2i8 rookPosRight = king.isWhite ? vec2i8(BoardWidth - 1, 0) : vec2i8(BoardWidth - 1, BoardWidth - 1);
+    const vec2i8 rookPosLeft = king.isWhite ? vec2i8(0, 0) : vec2i8(0, BoardWidth - 1);
 
     if (!board[rookPosLeft].hasMoved)
     {
