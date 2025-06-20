@@ -486,8 +486,8 @@ int64_t evaluate_chess_board(const chess_board &board)
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
   {
     const chess_piece p = board.board[i];
-    const int64_t negate = board.isWhitesTurn == p.isWhite;
-    ret += (Values[p.piece] ^ -negate) + negate;
+    const int64_t negate = p.isWhite;
+    ret += (Values[p.piece] ^ -negate) + negate; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
   }
 
   return ret;
