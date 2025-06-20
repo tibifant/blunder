@@ -476,3 +476,19 @@ chess_board chess_board::get_starting_point()
 
   return board;
 }
+
+int64_t evaluate_chess_board(const chess_board &board)
+{
+  constexpr int64_t Values[] = { 0, 100000, 950, 563, 333, 305, 100 };
+
+  int64_t ret = 0;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
+  {
+    const chess_piece p = board.board[i];
+    const int64_t v = board.isWhitesTurn == p.isWhite ? Values[p.piece] : -Values[p.piece];
+    ret += v;
+  }
+
+  return ret;
+}
