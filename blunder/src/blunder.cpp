@@ -486,8 +486,8 @@ int64_t evaluate_chess_board(const chess_board &board)
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
   {
     const chess_piece p = board.board[i];
-    const int64_t v = board.isWhitesTurn == p.isWhite ? Values[p.piece] : -Values[p.piece];
-    ret += v;
+    const int8_t f = board.isWhitesTurn == p.isWhite ? 1 : -1;
+    ret += f * Values[p.piece];
   }
 
   return ret;
