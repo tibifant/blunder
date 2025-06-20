@@ -5,7 +5,7 @@
 
 enum chess_piece_type : uint8_t
 {
-  cpT_none,
+  cpT_none, // `none` has to always be 0 for easy checks.
 
   cpT_king,
   cpT_queen,
@@ -21,14 +21,15 @@ static_assert(_chess_piece_type_count < (1 << 4));
 
 struct chess_piece
 {
-  chess_piece_type piece : 6 = cpT_none;
+  chess_piece_type piece : 4 = cpT_none;
   uint8_t isWhite : 1 = false;
+  uint8_t hasMoved : 1 = false;
   uint8_t lastWasDoubleStep : 1 = false; // this is needed to know if a pawn can be captured. Needs to be reset after every move!
 
   chess_piece() = default;
-  chess_piece(const chess_piece_type type, const bool isWhite) : piece(type), isWhite(isWhite), lastWasDoubleStep(false) {}
+  chess_piece(const chess_piece_type type, const bool isWhite) : piece(type), isWhite(isWhite), lastWasDoubleStep(false), hasMoved(false) {}
   chess_piece(const chess_piece &) = default;
-  chess_piece(chess_piece &&move) noexcept : piece(move.piece), isWhite(move.isWhite), lastWasDoubleStep(lastWasDoubleStep) { move.piece = cpT_none; }
+  chess_piece(chess_piece &&move) noexcept : piece(move.piece), isWhite(move.isWhite), hasMoved(move.hasMoved), lastWasDoubleStep(lastWasDoubleStep) { move.piece = cpT_none; }
 
   chess_piece &operator = (const chess_piece &) = default;
 
@@ -36,6 +37,7 @@ struct chess_piece
   {
     piece = move.piece;
     isWhite = move.isWhite;
+    hasMoved = move.hasMoved;
     lastWasDoubleStep = move.lastWasDoubleStep;
 
     move.piece = cpT_none;
