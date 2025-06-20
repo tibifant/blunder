@@ -479,15 +479,15 @@ chess_board chess_board::get_starting_point()
 
 int64_t evaluate_chess_board(const chess_board &board)
 {
-  constexpr int64_t Values[] = { 0, 100000, 950, 563, 333, 305, 100 };
+  constexpr int64_t Values[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
 
   int64_t ret = 0;
 
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
   {
     const chess_piece p = board.board[i];
-    const int8_t f = board.isWhitesTurn == p.isWhite ? 1 : -1;
-    ret += f * Values[p.piece];
+    const int64_t negate = board.isWhitesTurn == p.isWhite;
+    ret += (Values[p.piece] ^ -negate) + negate;
   }
 
   return ret;
