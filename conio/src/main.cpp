@@ -249,9 +249,9 @@ char read_char()
 
 //////////////////////////////////////////////////////////////////////////
 
-bool is_lower_case(const char c)
+bool is_upper_case(const char c)
 {
-  return 'a' <= c && c <= 'z';
+  return 'A' <= c && c <= 'Z';
 }
 
 lsResult read_start_position_from_file(const char *filename, chess_board &board)
@@ -283,37 +283,37 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
       case 'K':
       case 'k':
         piece = cpT_king;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'Q':
       case 'q':
         piece = cpT_queen;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'N':
       case 'n':
         piece = cpT_knight;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'B':
       case 'b':
         piece = cpT_bishop;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'R':
       case 'r':
         piece = cpT_rook;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'P':
       case 'p':
         piece = cpT_pawn;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case '\r':
