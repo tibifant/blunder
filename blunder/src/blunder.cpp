@@ -492,3 +492,62 @@ int64_t evaluate_chess_board(const chess_board &board)
 
   return ret;
 }
+
+struct move_with_score
+{
+  chess_move move;
+  int64_t score;
+
+  move_with_score() = default;
+  move_with_score(const chess_move move, const int64_t score) : move(move), score(score) {}
+};
+
+template <size_t DepthRemaining, bool FindMin>
+move_with_score minimax_step(const chess_board &board)
+{
+  if constexpr (DepthRemaining == 0)
+  {
+    return move_with_score({}, evaluate_chess_board(board));
+  }
+  else
+  {
+    small_list<chess_move> moves;
+    LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
+    move_with_score ret;
+    ret.move = {};
+    ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
+
+    for (const chess_move move : moves)
+    {
+      const chess_board after = perform_move(board, move);
+      const move_with_score move_rating = minimax_step<DepthRemaining - 1, !FindMin>(after);
+
+      if constexpr (FindMin)
+      {
+        if (move_rating.score < ret.score)
+          ret = move_with_score(move, move_rating.score);
+      }
+      else
+      {
+        if (move_rating.score > ret.score)
+          ret = move_with_score(move, move_rating.score);
+      }
+    }
+
+    return ret;
+  }
+}
+
+constexpr size_t DefaultMinimaxDepth = 10;
+
+chess_move get_minimax_move_white(const chess_board &board)
+{
+  const move_with_score moveInfo = minimax_step<DefaultMinimaxDepth, true>(board);
+  return moveInfo.move;
+}
+
+chess_move get_minimax_move_black(const chess_board &board)
+{
+  const move_with_score moveInfo = minimax_step<DefaultMinimaxDepth, false>(board);
+  return moveInfo.move;
+}

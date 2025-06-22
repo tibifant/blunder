@@ -96,6 +96,11 @@ struct chess_move
   uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alligment issues.
 
   chess_move() = default;
+  chess_move(const chess_move &) = default;
+  chess_move(chess_move &&) = default;
+  chess_move &operator =(const chess_move &) = default;
+  chess_move &operator =(chess_move &&) = default;
+
   chess_move(const vec2i8 start, const vec2i8 target) : startX(start.x), startY(start.y), targetX(target.x), targetY(target.y), isPromotion(false), isPromotedToQueen(false)
   {
     lsAssert(start.x >= 0 && start.x < BoardWidth && start.y >= 0 && start.y < BoardWidth);
@@ -107,4 +112,6 @@ static_assert(sizeof(chess_move) == sizeof(uint16_t));
 
 lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves);
 chess_board perform_move(const chess_board &board, const chess_move move);
-
+int64_t evaluate_chess_board(const chess_board &board);
+chess_move get_minimax_move_white(const chess_board &board);
+chess_move get_minimax_move_black(const chess_board &board);

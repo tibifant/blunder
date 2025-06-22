@@ -8,7 +8,16 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input);
+enum ai_type
+{
+  ait_player,
+  ait_random,
+  ait_minimax
+};
+
+template <bool IsWhite>
+void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_type from_input);
+
 void print_board(const chess_board &board);
 char read_char();
 lsResult read_start_position_from_file(const char *filename, chess_board &board);
@@ -22,19 +31,23 @@ int32_t main(const int32_t argc, char **pArgv)
   cpu_info::DetectCpuFeatures();
 
   chess_board board = chess_board::get_starting_point();
-  bool white_from_input = true;
-  bool black_from_input = false;
+  ai_type white_player = ait_player;
+  ai_type black_player = ait_minimax;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {
     if (lsStringEquals("--play-white", pArgv[i]))
-      white_from_input = true;
+      white_player = ait_player;
     else if (lsStringEquals("--play-black", pArgv[i]))
-      black_from_input = true;
-    else if (lsStringEquals("--ai-white", pArgv[i]))
-      white_from_input = false;
-    else if (lsStringEquals("--ai-black", pArgv[i]))
-      black_from_input = false;
+      black_player = ait_player;
+    else if (lsStringEquals("--random-white", pArgv[i]))
+      white_player = ait_random;
+    else if (lsStringEquals("--random-black", pArgv[i]))
+      black_player = ait_random;
+    else if (lsStringEquals("--minimax-white", pArgv[i]))
+      white_player = ait_minimax;
+    else if (lsStringEquals("--minimax-black", pArgv[i]))
+      black_player = ait_minimax;
     else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
       lsFail();
   }
@@ -72,12 +85,12 @@ int32_t main(const int32_t argc, char **pArgv)
 
   while (true)
   {
-    perform_move(board, moves, white_from_input);
+    perform_move<true>(board, moves, white_player);
 
     if (board.hasWhiteWon)
       break;
 
-    perform_move(board, moves, black_from_input);
+    perform_move<false>(board, moves, black_player);
 
     if (board.hasBlackWon)
       break;
@@ -173,19 +186,21 @@ chess_move get_move_from_input(const chess_board &board, small_list<chess_move> 
   }
 }
 
-void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input)
+template <bool IsWhite>
+void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_type ai)
 {
-  if (from_input)
+  switch (ai)
+  {
+  default:
+  case ait_player:
   {
     const chess_move move = get_move_from_input(board, moves);
-
-    // Perform move.
     board = perform_move(board, move);
+    break;
   }
-  else // AI move.
-  {
-    print("Calculating AI Move... (lol)\n");
 
+  case ait_random:
+  {
     if (LS_FAILED(get_all_valid_moves(board, moves)))
     {
       print_error_line("Failed to retrieve moves. Aborting.");
@@ -195,6 +210,22 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const bool 
     // Perform random move.
     const size_t moveIdx = lsGetRand() % moves.count;
     board = perform_move(board, moves[moveIdx]);
+
+    break;
+  }
+
+  case ait_minimax:
+  {
+    chess_move move;
+
+    if constexpr (IsWhite)
+      move = get_minimax_move_white(board);
+    else
+      move = get_minimax_move_black(board);
+
+    board = perform_move(board, move);
+    break;
+  }
   }
 
   print_board(board);
