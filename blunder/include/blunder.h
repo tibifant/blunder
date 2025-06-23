@@ -85,6 +85,21 @@ struct chess_board
   static chess_board get_starting_point();
 };
 
+enum chess_move_type : uint8_t
+{
+  cmt_invalid,
+  cmt_pawn,
+  cmt_pawn_double_step,
+  cmt_pawn_en_passant,
+  cmt_pawn_promotion,
+  cmt_pawn_capture,
+  cmt_knight,
+  cmt_rook_queen,
+  cmt_bishop_queen,
+  cmt_king,
+  cmt_king_castle,
+};
+
 struct chess_move
 {
   uint8_t startX : 3;
@@ -95,20 +110,33 @@ struct chess_move
   uint8_t isPromotion : 1 = false;
   uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alligment issues.
 
+#ifdef _DEBUG
+  chess_move_type moveType = cmt_invalid; // only for asserting!
+#endif
+
   chess_move() = default;
   chess_move(const chess_move &) = default;
   chess_move(chess_move &&) = default;
   chess_move &operator =(const chess_move &) = default;
   chess_move &operator =(chess_move &&) = default;
 
-  chess_move(const vec2i8 start, const vec2i8 target) : startX(start.x), startY(start.y), targetX(target.x), targetY(target.y), isPromotion(false), isPromotedToQueen(false)
+  chess_move(const vec2i8 start, const vec2i8 target, const chess_move_type type) : startX(start.x), startY(start.y), targetX(target.x), targetY(target.y), isPromotion(false), isPromotedToQueen(false)
   {
+#ifdef _DEBUG
+    lsAssert(type != cmt_invalid);
+    moveType = type;
+#else
+    (void)type;
+#endif
+
     lsAssert(start.x >= 0 && start.x < BoardWidth && start.y >= 0 && start.y < BoardWidth);
     lsAssert(target.x >= 0 && target.x < BoardWidth && target.y >= 0 && target.y < BoardWidth);
   }
 };
 
+#ifndef _DEBUG
 static_assert(sizeof(chess_move) == sizeof(uint16_t));
+#endif
 
 lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves);
 chess_board perform_move(const chess_board &board, const chess_move move);

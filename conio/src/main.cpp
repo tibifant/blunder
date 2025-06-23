@@ -86,12 +86,12 @@ int32_t main(const int32_t argc, char **pArgv)
   while (true)
   {
     perform_move<true>(board, moves, white_player);
-
+  
     if (board.hasWhiteWon)
       break;
-
+  
     perform_move<false>(board, moves, black_player);
-
+  
     if (board.hasBlackWon)
       break;
   }

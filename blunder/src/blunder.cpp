@@ -107,10 +107,12 @@ bool is_check_for_position(const chess_board &board, const vec2i8 pos, const boo
   return false;
 }
 
-__forceinline lsResult add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, small_list<chess_move> &moves)
+//////////////////////////////////////////////////////////////////////////
+
+__forceinline lsResult add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, small_list<chess_move> &moves, [[maybe_unused]] const chess_move_type type)
 {
   if (destination.x >= 0 && destination.x < BoardWidth && destination.y >= 0 && destination.y < BoardWidth && (!board[destination].piece || board[destination].isWhite != board.isWhitesTurn))
-    return list_add(&moves, chess_move(origin, destination));
+    return list_add(&moves, chess_move(origin, destination, type));
   else
     return lsR_Success;
 }
@@ -125,7 +127,7 @@ __forceinline lsResult add_valid_move(const chess_move move, const chess_board &
     return lsR_Success;
 }
 
-inline lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, const vec2i8 dir, small_list<chess_move> &moves)
+inline lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, const vec2i8 dir, small_list<chess_move> &moves, [[maybe_unused]] const chess_move_type type)
 {
   lsResult result = lsR_Success;
 
@@ -135,7 +137,7 @@ inline lsResult add_repeated_moves(const chess_board &board, const vec2i8 startP
   {
     const vec2i8 targetPos = startPos + vec2i8(i) * dir;
 
-    LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
+    LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves, type));
 
     if (board[targetPos].piece)
       break;
@@ -158,11 +160,11 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
   if (!board[targetPos].piece)
   {
     if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[doubleStepTargetPos].piece)
-      LS_ERROR_CHECK(add_valid_move(startPos, doubleStepTargetPos, board, moves));
+      LS_ERROR_CHECK(add_valid_move(startPos, doubleStepTargetPos, board, moves, cmt_pawn_double_step));
 
     if (targetPos.y == BoardWidth - 1 || targetPos.y == 0)
     {
-      chess_move move = chess_move(startPos, targetPos);
+      chess_move move = chess_move(startPos, targetPos, cmt_pawn_promotion);
       move.isPromotion = true;
 
       move.isPromotedToQueen = true;
@@ -173,7 +175,7 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     }
     else
     {
-      LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves));
+      LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves, cmt_pawn));
     }
   }
 
@@ -182,7 +184,7 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     const chess_piece enemyPiece = board[diagonalLeftTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      LS_ERROR_CHECK(add_valid_move(startPos, diagonalLeftTargetPos, board, moves));
+      LS_ERROR_CHECK(add_valid_move(startPos, diagonalLeftTargetPos, board, moves, cmt_pawn_capture));
   }
 
   if (diagonalRightTargetPos.x < BoardWidth && diagonalRightTargetPos.y >= 0 && diagonalRightTargetPos.y < BoardWidth)
@@ -190,7 +192,7 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     const chess_piece enemyPiece = board[diagonalRightTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      LS_ERROR_CHECK(add_valid_move(startPos, diagonalRightTargetPos, board, moves));
+      LS_ERROR_CHECK(add_valid_move(startPos, diagonalRightTargetPos, board, moves, cmt_pawn_capture));
   }
 
   // en passant
@@ -202,17 +204,19 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     if (enemyPosLeft.x >= 0)
     {
       const chess_piece enemyPiece = board[enemyPosLeft];
+      const vec2i8 targetPosLeft = vec2i8(targetPos.x - 1, targetPos.y);
 
-      if (enemyPiece.piece && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn))
-        LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(targetPos.x - 1, targetPos.y), board, moves));
+      if (enemyPiece.piece == cpT_pawn && !board[targetPosLeft].piece && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn)) // `!board[targetPosLeft].piece` simplified check instead of checking wether there was any move inbetween this and the opponent's double step move
+        LS_ERROR_CHECK(add_valid_move(startPos, targetPosLeft, board, moves, cmt_pawn_en_passant));
     }
 
     if (enemyPosRight.x < BoardWidth)
     {
       const chess_piece enemyPiece = board[enemyPosRight];
+      const vec2i8 targetPosRight = vec2i8(targetPos.x + 1, targetPos.y);
 
-      if (enemyPiece.piece && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn))
-        LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(targetPos.x + 1, targetPos.y), board, moves));
+      if (enemyPiece.piece == cpT_pawn && !board[targetPosRight].piece && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn)) // `!board[targetPosRight].piece` simplified check instead of checking wether there was any move inbetween this and the opponent's double step move
+        LS_ERROR_CHECK(add_valid_move(startPos, targetPosRight, board, moves, cmt_pawn_en_passant));
     }
   }
 
@@ -255,7 +259,7 @@ __forceinline lsResult add_castle_moves_from(const chess_board &board, small_lis
       }
 
       if (isFree && !isCheck)
-        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosLeft + vec2i8(1, 0)))); // all checks from `add_valid_move` have already been checked
+        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosLeft + vec2i8(1, 0), cmt_king_castle))); // all checks from `add_valid_move` have already been checked
     }
 
     if (!board[rookPosRight].hasMoved)
@@ -281,7 +285,7 @@ __forceinline lsResult add_castle_moves_from(const chess_board &board, small_lis
       }
 
       if (isFree && !isCheck)
-        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosRight + vec2i8(-1, 0)))); // all checks from `add_valid_move` have already been checked
+        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosRight + vec2i8(-1, 0), cmt_king_castle))); // all checks from `add_valid_move` have already been checked
     }
   }
 
@@ -311,24 +315,24 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
           constexpr static vec2i8 TargetDir[] = { vec2i8(-2, -1), vec2i8(-1, -2), vec2i8(1, -2), vec2i8(2, -1), vec2i8(2, 1), vec2i8(1, 2), vec2i8(-1, 2), vec2i8(-2, 1) };
 
           for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
-            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves));
+            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves, cmt_knight));
         }
         else if constexpr (piece == cpT_bishop || piece == cpT_rook || piece == cpT_queen)
         {
           if constexpr (piece != cpT_rook)
           {
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopLeftRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRightRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomLeftRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRightRelative, moves));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopLeftRelative, moves, cmt_bishop_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRightRelative, moves, cmt_bishop_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomLeftRelative, moves, cmt_bishop_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRightRelative, moves, cmt_bishop_queen));
           }
 
           if constexpr (piece != cpT_bishop)
           {
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, LeftRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, RightRelative, moves));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRelative, moves));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, LeftRelative, moves, cmt_rook_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRelative, moves, cmt_rook_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, RightRelative, moves, cmt_rook_queen));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRelative, moves, cmt_rook_queen));
           }
         }
         else if constexpr (piece == cpT_king)
@@ -336,7 +340,7 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
           constexpr vec2i8 TargetDir[] = { TopLeftRelative, TopRelative, TopRightRelative, LeftRelative, RightRelative, BottomLeftRelative, BottomRelative, BottomRightRelative };
 
           for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
-            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves));
+            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves, cmt_king));
 
           LS_ERROR_CHECK(add_castle_moves_from(board, moves, startPos));
         }
@@ -370,6 +374,18 @@ epilogue:
   return result;
 }
 
+//////////////////////////////////////////////////////////////////////////
+
+__forceinline void assert_move_type(const chess_move move, const chess_move_type type)
+{
+#ifdef _DEBUG
+  lsAssert(move.moveType == type);
+#else
+  (void)move;
+  (void)type;
+#endif
+}
+
 chess_board perform_move(const chess_board &board, const chess_move move)
 {
   chess_board ret = board;
@@ -401,16 +417,20 @@ chess_board perform_move(const chess_board &board, const chess_move move)
   if (origin.piece == cpT_pawn)
   {
     if (((move.startY == 1 && origin.isWhite) || (move.startY == 6 && !origin.isWhite)) && lsAbs(move.startY - move.targetY) == 2)
+    {
+      assert_move_type(move, cmt_pawn_double_step);
       origin.lastWasDoubleStep = true;
-
-    if (move.startX != move.targetX)
+    }
+    else if (move.startX != move.targetX)
     {
       if (target.piece)
       {
+        assert_move_type(move, cmt_pawn_capture);
         lsAssert(target.isWhite == ret.isWhitesTurn);
       }
       else // en passant
       {
+        assert_move_type(move, cmt_pawn_en_passant);
         const vec2i8 enemyPos = vec2i8(move.targetX, move.startY);
         lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
         ret[enemyPos].piece = cpT_none;
@@ -418,6 +438,7 @@ chess_board perform_move(const chess_board &board, const chess_move move)
     }
     else if (move.isPromotion)
     {
+      assert_move_type(move, cmt_pawn_promotion);
       lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
 
       if (move.isPromotedToQueen)
@@ -425,12 +446,17 @@ chess_board perform_move(const chess_board &board, const chess_move move)
       else
         origin.piece = cpT_knight;
     }
+    else
+    {
+      assert_move_type(move, cmt_pawn);
+    }
   }
   else if (origin.piece == cpT_king)
   {
     // castlen
     if (lsAbs(move.startX - move.targetX) > 1)
     {
+      assert_move_type(move, cmt_king_castle);
       lsAssert((move.targetY == 0 || move.targetY == BoardWidth - 1) && (move.targetX == 1 || move.targetX == BoardWidth - 2));
 
       const vec2i8 rookPosOrigin = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX + 1, move.targetY) : vec2i8(move.targetX - 1, move.targetY);
@@ -444,6 +470,22 @@ chess_board perform_move(const chess_board &board, const chess_move move)
       rookTarget = std::move(rookOrigin);
       ret[rookPosOrigin].piece = cpT_none;
     }
+    else
+    {
+      assert_move_type(move, cmt_king);
+    }
+  }
+  else if (origin.piece == cpT_knight)
+  {
+    assert_move_type(move, cmt_knight);
+  }
+  else if (origin.piece == cpT_bishop || origin.piece == cpT_queen)
+  {
+    assert_move_type(move, cmt_bishop_queen);
+  }
+  else if (origin.piece == cpT_rook || origin.piece == cpT_queen)
+  {
+    assert_move_type(move, cmt_rook_queen);
   }
 
   origin.hasMoved = true;
@@ -451,6 +493,8 @@ chess_board perform_move(const chess_board &board, const chess_move move)
 
   return ret;
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 inline void place_symmetric_last_row(chess_board &board, const chess_piece_type piece, const int8_t x)
 {
@@ -476,6 +520,8 @@ chess_board chess_board::get_starting_point()
 
   return board;
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 int64_t evaluate_chess_board(const chess_board &board)
 {
