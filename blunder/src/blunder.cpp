@@ -1,4 +1,7 @@
 #include "blunder.h"
+#include "testable.h"
+
+#include <conio.h>
 
 constexpr vec2i8 TopLeftRelative = vec2i8(-1, -1);
 constexpr vec2i8 TopRelative = vec2i8(0, -1);
@@ -324,18 +327,20 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
         {
           if constexpr (piece != cpT_rook)
           {
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopLeftRelative, moves, cmt_bishop_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRightRelative, moves, cmt_bishop_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomLeftRelative, moves, cmt_bishop_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRightRelative, moves, cmt_bishop_queen));
+            constexpr chess_move_type moveType = piece == cpT_bishop ? cmt_bishop : cmt_queen_diagonal;
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopLeftRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRightRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomLeftRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRightRelative, moves, moveType));
           }
 
           if constexpr (piece != cpT_bishop)
           {
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, LeftRelative, moves, cmt_rook_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRelative, moves, cmt_rook_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, RightRelative, moves, cmt_rook_queen));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRelative, moves, cmt_rook_queen));
+            constexpr chess_move_type moveType = piece == cpT_rook ? cmt_rook : cmt_queen_straight;
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, LeftRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, RightRelative, moves, moveType));
+            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRelative, moves, moveType));
           }
         }
         else if constexpr (piece == cpT_king)
@@ -379,11 +384,17 @@ epilogue:
 
 //////////////////////////////////////////////////////////////////////////
 
-__forceinline void assert_move_type(const chess_move move, const chess_move_type type)
+__forceinline void assert_move_type(const chess_move move, const chess_move_type type, const chess_board &board)
 {
 #ifdef _DEBUG
-  lsAssert(move.moveType == type);
+  //lsAssert(move.moveType == type);
+  if (move.moveType != type)
+  {
+    print_board(board);
+    lsAssert(false);
+  }
 #else
+  (void)board;
   (void)move;
   (void)type;
 #endif
@@ -421,19 +432,19 @@ chess_board perform_move(const chess_board &board, const chess_move move)
   {
     if (((move.startY == 1 && origin.isWhite) || (move.startY == 6 && !origin.isWhite)) && lsAbs(move.startY - move.targetY) == 2)
     {
-      assert_move_type(move, cmt_pawn_double_step);
+      assert_move_type(move, cmt_pawn_double_step, board);
       origin.lastWasDoubleStep = true;
     }
     else if (move.startX != move.targetX)
     {
       if (target.piece)
       {
-        assert_move_type(move, cmt_pawn_capture);
+        assert_move_type(move, cmt_pawn_capture, board);
         lsAssert(target.isWhite == ret.isWhitesTurn);
       }
       else // en passant
       {
-        assert_move_type(move, cmt_pawn_en_passant);
+        assert_move_type(move, cmt_pawn_en_passant, board);
         const vec2i8 enemyPos = vec2i8(move.targetX, move.startY);
         lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
         ret[enemyPos].piece = cpT_none;
@@ -441,7 +452,7 @@ chess_board perform_move(const chess_board &board, const chess_move move)
     }
     else if (move.isPromotion)
     {
-      assert_move_type(move, cmt_pawn_promotion);
+      assert_move_type(move, cmt_pawn_promotion, board);
       lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
 
       if (move.isPromotedToQueen)
@@ -451,7 +462,7 @@ chess_board perform_move(const chess_board &board, const chess_move move)
     }
     else
     {
-      assert_move_type(move, cmt_pawn);
+      assert_move_type(move, cmt_pawn, board);
     }
   }
   else if (origin.piece == cpT_king)
@@ -459,7 +470,7 @@ chess_board perform_move(const chess_board &board, const chess_move move)
     // castlen
     if (lsAbs(move.startX - move.targetX) > 1)
     {
-      assert_move_type(move, cmt_king_castle);
+      assert_move_type(move, cmt_king_castle, board);
       lsAssert((move.targetY == 0 || move.targetY == BoardWidth - 1) && (move.targetX == 1 || move.targetX == BoardWidth - 2));
 
       const vec2i8 rookPosOrigin = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX + 1, move.targetY) : vec2i8(move.targetX - 1, move.targetY);
@@ -475,27 +486,27 @@ chess_board perform_move(const chess_board &board, const chess_move move)
     }
     else
     {
-      assert_move_type(move, cmt_king);
+      assert_move_type(move, cmt_king, board);
     }
   }
   else if (origin.piece == cpT_knight)
   {
-    assert_move_type(move, cmt_knight);
+    assert_move_type(move, cmt_knight, board);
   }
   else if (origin.piece == cpT_bishop)
   {
-    assert_move_type(move, cmt_bishop_queen);
+    assert_move_type(move, cmt_bishop, board);
   }
   else if (origin.piece == cpT_rook)
   {
-    assert_move_type(move, cmt_rook_queen);
+    assert_move_type(move, cmt_rook, board);
   }
   else if (origin.piece == cpT_queen)
   {
     if (move.startX != move.targetX && move.startY != move.targetY)
-      assert_move_type(move, cmt_bishop_queen);
+      assert_move_type(move, cmt_queen_diagonal, board);
     else
-      assert_move_type(move, cmt_rook_queen);
+      assert_move_type(move, cmt_queen_straight, board);
   }
 
   origin.hasMoved = true;
@@ -606,4 +617,83 @@ chess_move get_minimax_move_black(const chess_board &board)
 {
   const move_with_score moveInfo = minimax_step<DefaultMinimaxDepth, false>(board);
   return moveInfo.move;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+void print_x_coords()
+{
+  print("   ");
+
+  for (int8_t x = 0; x < 8; x++)
+    print(' ', (char)('a' + x), ' ');
+
+  print('\n');
+}
+
+void print_board(const chess_board &board)
+{
+  char pieces[] = " KQRBNP";
+  static_assert(LS_ARRAYSIZE(pieces) == _chess_piece_type_count + 1 /* \0 */);
+
+  print_x_coords();
+
+  for (int8_t y = 7; y >= 0; y--)
+  {
+    print(' ', (char)('1' + y), ' ');
+
+    for (int8_t x = 0; x < 8; x++)
+    {
+      const chess_piece piece = board[vec2i8(x, y)];
+      lsSetConsoleColor(piece.isWhite ? lsCC_White : lsCC_Black, ((x ^ y) & 1) ? lsCC_BrightCyan : lsCC_DarkBlue);
+      lsAssert(piece.piece < _chess_piece_type_count);
+      print(' ', pieces[piece.piece], ' ');
+    }
+
+    lsResetConsoleColor();
+
+    print(' ', (char)('1' + y), '\n');
+  }
+
+  print_x_coords();
+  print("\n");
+}
+
+char read_char()
+{
+  const char c = (char)_getch();
+  print(c);
+  return c;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+REGISTER_TESTABLE_FILE(0)
+
+DEFINE_TESTABLE(pawn_double_step_test)
+{
+  lsResult result = lsR_Success;
+
+  chess_board board = chess_board::get_starting_point();
+  print_board(board);
+  board = perform_move(board, chess_move(vec2i8(4, 1), vec2i8(4, 3), cmt_pawn_double_step));
+  print_board(board);
+
+  board = perform_move(board, chess_move(vec2i8(1, 6), vec2i8(1, 4), cmt_pawn_double_step));
+  print_board(board);
+
+  TESTABLE_ASSERT_FALSE(!!board[vec2i8(4, 3)].lastWasDoubleStep);
+
+  board = perform_move(board, chess_move(vec2i8(0, 1), vec2i8(0, 3), cmt_pawn_double_step));
+  print_board(board);
+  board = perform_move(board, chess_move(vec2i8(1, 4), vec2i8(1, 3), cmt_pawn));
+  print_board(board);
+  board = perform_move(board, chess_move(vec2i8(0, 0), vec2i8(0, 2), cmt_rook));
+  print_board(board);
+
+  TESTABLE_ASSERT_FALSE(!!board[vec2i8(0, 3)].lastWasDoubleStep);
+
+  goto epilogue;
+epilogue:
+  return result;
 }

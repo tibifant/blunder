@@ -1,8 +1,7 @@
 #include "core.h"
 #include "blunder.h"
 #include "io.h"
-
-#include <conio.h>
+#include "testable.h"
 
 #include <optional>
 
@@ -29,6 +28,8 @@ int32_t main(const int32_t argc, char **pArgv)
 {
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
+
+  run_testables();
 
   chess_board board = chess_board::get_starting_point();
   ai_type white_player = ait_player;
@@ -86,12 +87,12 @@ int32_t main(const int32_t argc, char **pArgv)
   while (true)
   {
     perform_move<true>(board, moves, white_player);
-  
+
     if (board.hasWhiteWon)
       break;
-  
+
     perform_move<false>(board, moves, black_player);
-  
+
     if (board.hasBlackWon)
       break;
   }
@@ -229,53 +230,6 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
   }
 
   print_board(board);
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-void print_x_coords()
-{
-  print("   ");
-
-  for (int8_t x = 0; x < 8; x++)
-    print(' ', (char)('a' + x), ' ');
-
-  print('\n');
-}
-
-void print_board(const chess_board &board)
-{
-  char pieces[] = " KQRBNP";
-  static_assert(LS_ARRAYSIZE(pieces) == _chess_piece_type_count + 1 /* \0 */);
-
-  print_x_coords();
-
-  for (int8_t y = 7; y >= 0; y--)
-  {
-    print(' ', (char)('1' + y), ' ');
-
-    for (int8_t x = 0; x < 8; x++)
-    {
-      const chess_piece piece = board[vec2i8(x, y)];
-      lsSetConsoleColor(piece.isWhite ? lsCC_White : lsCC_Black, ((x ^ y) & 1) ? lsCC_BrightCyan : lsCC_DarkBlue);
-      lsAssert(piece.piece < _chess_piece_type_count);
-      print(' ', pieces[piece.piece], ' ');
-    }
-
-    lsResetConsoleColor();
-
-    print(' ', (char)('1' + y), '\n');
-  }
-
-  print_x_coords();
-  print("\n");
-}
-
-char read_char()
-{
-  const char c = (char)_getch();
-  print(c);
-  return c;
 }
 
 //////////////////////////////////////////////////////////////////////////

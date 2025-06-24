@@ -29,7 +29,12 @@ struct chess_piece
   chess_piece() = default;
   chess_piece(const chess_piece_type type, const bool isWhite) : piece(type), isWhite(isWhite), lastWasDoubleStep(false), hasMoved(false) {}
   chess_piece(const chess_piece &) = default;
-  chess_piece(chess_piece &&move) noexcept : piece(move.piece), isWhite(move.isWhite), hasMoved(move.hasMoved), lastWasDoubleStep(lastWasDoubleStep) { move.piece = cpT_none; }
+
+  chess_piece(chess_piece &&move) noexcept : piece(move.piece), isWhite(move.isWhite), hasMoved(move.hasMoved), lastWasDoubleStep(move.lastWasDoubleStep)
+  {
+    move.piece = cpT_none;
+    move.lastWasDoubleStep = false;
+  }
 
   chess_piece &operator = (const chess_piece &) = default;
 
@@ -94,8 +99,10 @@ enum chess_move_type : uint8_t
   cmt_pawn_promotion,
   cmt_pawn_capture,
   cmt_knight,
-  cmt_rook_queen,
-  cmt_bishop_queen,
+  cmt_queen_straight,
+  cmt_queen_diagonal,
+  cmt_rook,
+  cmt_bishop,
   cmt_king,
   cmt_king_castle,
 };
@@ -143,3 +150,4 @@ chess_board perform_move(const chess_board &board, const chess_move move);
 int64_t evaluate_chess_board(const chess_board &board);
 chess_move get_minimax_move_white(const chess_board &board);
 chess_move get_minimax_move_black(const chess_board &board);
+void print_board(const chess_board &board);
