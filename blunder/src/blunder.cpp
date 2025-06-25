@@ -371,12 +371,12 @@ lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &m
 
   list_clear(&moves);
 
+  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_pawn>(board, moves));
   LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_king>(board, moves));
   LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_queen>(board, moves));
   LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_rook>(board, moves));
   LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_bishop>(board, moves));
   LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_knight>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_pawn>(board, moves));
 
 epilogue:
   return result;
@@ -641,10 +641,10 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
         {
           ret = move_with_score(move, move_rating.score);
           beta = lsMin(beta, ret.score);
-        }
 
-        if (move_rating.score <= alpha)
-          break;
+          if (ret.score <= alpha)
+            break;
+        }
       }
       else
       {
@@ -652,10 +652,10 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
         {
           ret = move_with_score(move, move_rating.score);
           alpha = lsMax(alpha, ret.score);
-        }
 
-        if (ret.score >= beta)
-          break;
+          if (ret.score >= beta)
+            break;
+        }
       }
     }
 
@@ -663,7 +663,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
   }
 }
 
-constexpr size_t DefaultMinimaxDepth = 5;//10;
+constexpr size_t DefaultMinimaxDepth = 4;
 
 chess_move get_minimax_move_white(const chess_board &board)
 {
@@ -677,7 +677,7 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 7;
+constexpr size_t DefaultAlphaBetaDepth = 6;
 
 chess_move get_alpha_beta_white(const chess_board &board)
 {
