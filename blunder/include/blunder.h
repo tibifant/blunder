@@ -146,8 +146,13 @@ static_assert(sizeof(chess_move) == sizeof(uint16_t));
 #endif
 
 lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves);
+
 chess_board perform_move(const chess_board &board, const chess_move move);
 int64_t evaluate_chess_board(const chess_board &board);
+
 chess_move get_minimax_move_white(const chess_board &board);
 chess_move get_minimax_move_black(const chess_board &board);
+chess_move get_alpha_beta_white(const chess_board &board);
+chess_move get_alpha_beta_black(const chess_board &board);
+
 void print_board(const chess_board &board);
