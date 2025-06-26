@@ -695,6 +695,11 @@ chess_move get_alpha_beta_black(const chess_board &board)
 
 //////////////////////////////////////////////////////////////////////////
 
+void print_move(const chess_move move)
+{
+  print(move.startX + 'a', move.startY + 1, move.targetX + 'a', move.targetY + 1 + '\n');
+}
+
 void print_x_coords()
 {
   print("   ");
