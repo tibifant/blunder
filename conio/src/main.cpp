@@ -109,6 +109,11 @@ int32_t main(const int32_t argc, char **pArgv)
 
 //////////////////////////////////////////////////////////////////////////
 
+void print_played_move(const chess_move move)
+{
+  print("Played Move: ", (char)(move.startX + 'a'), move.startY + 1, (char)(move.targetX + 'a'), move.targetY + 1, "\n\n");
+}
+
 chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves)
 {
   while (true)
@@ -216,8 +221,7 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
     // Perform random move.
     const size_t moveIdx = lsGetRand() % moves.count;
     board = perform_move(board, moves[moveIdx]);
-    print("Played Move: ");
-    print_move(move);
+    print_played_move(moves[moveIdx]);
 
     break;
   }
@@ -232,8 +236,7 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
       move = get_minimax_move_black(board);
 
     board = perform_move(board, move);
-    print("Played Move: ");
-    print_move(move);
+    print_played_move(move);
 
     break;
   }
@@ -248,8 +251,7 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
       move = get_alpha_beta_black(board);
 
     board = perform_move(board, move);
-    print("Played Move: ");
-    print_move(move);
+    print_played_move(move);
 
     break;
   }

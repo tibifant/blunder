@@ -544,17 +544,127 @@ chess_board chess_board::get_starting_point()
 
 //////////////////////////////////////////////////////////////////////////
 
+constexpr uint8_t SquareWeightFactor = 1;
+
+struct square_weights
+{
+  int8_t weights[BoardWidth * BoardWidth];
+
+  constexpr square_weights(const std::initializer_list<int8_t> &w, const uint8_t scale = SquareWeightFactor)
+  {
+    lsAssert(w.size() == LS_ARRAYSIZE(weights));
+
+    size_t i = (size_t)-1;
+
+    for (const int8_t v : w)
+    {
+      ++i;
+      lsAssert((int64_t)v * (int64_t)scale <= lsMaxValue<int8_t>() && (int64_t)v * (int64_t)scale >= lsMinValue<int8_t>());
+      weights[i] = v * (int8_t)scale;
+    }
+  }
+};
+
+static const square_weights SquareWeights[] = { // https://www.talkchess.com/forum/viewtopic.php?p=553266#p553266
+  square_weights({ // none
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0
+  }),
+  square_weights({ // king
+  -40, -33, -26, -20, -20, -26, -33, -40,
+  -33, -26, -20, -13, -13, -20, -26, -33,
+  -26, -20, -13,  -7,  -7, -13, -20, -26,
+  -20, -13,  -7,   0,   0,  -7, -13, -20,
+  -20, -13,  -7,   0,   0,  -7, -13, -20,
+  -26, -20, -13,  -7,  -7, -13, -20, -26,
+  -23, -16, -10,  -3,  -3, -10, -16, -23,
+  -25, -13,  -6,  -5,   0, -11, -13, -25
+  }),
+  square_weights({ // queen
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0
+  }),
+  square_weights({ // rook
+  0,  0,  0,  0,  0,  0,  0,  0,
+  20, 20, 20, 20, 20, 20, 20, 20,
+  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0
+  }),
+  square_weights({ // bishop
+  -10,  -6,  -3,   0,   0,  -3,  -6, -10,
+   -6,  -3,   0,   3,   3,   0,  -3,  -6,
+   -3,   0,   3,   6,   6,   3,   0,  -3,
+    0,   3,   6,  10,  10,   6,   3,   0,
+    0,   3,   6,  10,  10,   6,   3,   0,
+   -3,   0,   3,   6,   6,   3,   0,  -3,
+   -6,  -3,   0,   3,   3,   0,  -3,  -6,
+  -10,  -6,  -3,   0,   0,  -3,  -6, -10
+  }),
+  square_weights({ // knight
+  -10,  -6,  -3,   0,   0,  -3,  -6, -10,
+   -6,  -3,   0,   3,   3,   0,  -3,  -6,
+   -3,   0,   3,   6,   6,   3,   0,  -3,
+    0,   3,   6,  10,  10,   6,   3,   0,
+    0,   3,   6,  10,  10,   6,   3,   0,
+   -3,   0,   3,   6,   6,   3,   0,  -3,
+   -6,  -3,   0,   3,   3,   0,  -3,  -6,
+  -10,  -6,  -3,   0,   0,  -3,  -6, -10
+  }),
+  square_weights({ // pawn
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,  10,  10,   0,   0,   0,
+  0,   0,   5,  10,  10,   5,   0,   0,
+  0,   0,   5,  10,  10,   5,   0,   0,
+  0,   0,   5,   5,   5,   5,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0,
+  0,   0,   0,   0,   0,   0,   0,   0
+  })
+};
+
+static_assert(LS_ARRAYSIZE(SquareWeights) == _chess_piece_type_count);
+
 int64_t evaluate_chess_board(const chess_board &board)
 {
-  constexpr int64_t Values[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
+  constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
 
   int64_t ret = 0;
 
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
   {
     const chess_piece p = board.board[i];
-    const int64_t negate = p.isWhite;
-    ret += (Values[p.piece] ^ -negate) + negate; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
+    const int64_t negate = !p.isWhite;
+
+    const uint64_t posMaskBlack = (uint64_t)p.isWhite - 1; // 0 -> All Bits, 1 -> No Bits
+    const uint64_t posWhite = i;
+    const uint64_t posBlack = (((LS_ARRAYSIZE(board.board) - 1) - i) & ~7) | (i & 7); // invert y.
+    const uint64_t pos = (posMaskBlack & posBlack) | ((~posMaskBlack) & posWhite); // branchless select.
+
+    const int64_t squareScore = SquareWeights[p.piece].weights[pos];
+    const int64_t pieceScore = PieceScores[p.piece];
+    const int64_t score = squareScore + pieceScore;
+
+    const int64_t signedScore = ((score) ^ -negate) + negate;
+    const uint64_t scoreZeroMask = (uint64_t)(!score) - 1;
+    const int64_t signedScoreWithZero = (int64_t)((uint64_t)signedScore & scoreZeroMask);
+
+    ret += signedScoreWithZero; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
   }
 
   return ret;
@@ -677,7 +787,7 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 6;
+constexpr size_t DefaultAlphaBetaDepth = 1;
 
 chess_move get_alpha_beta_white(const chess_board &board)
 {
@@ -697,7 +807,7 @@ chess_move get_alpha_beta_black(const chess_board &board)
 
 void print_move(const chess_move move)
 {
-  print(move.startX + 'a', move.startY + 1, move.targetX + 'a', move.targetY + 1 + '\n');
+  print((char)(move.startX + 'a'), move.startY + 1, (char)(move.targetX + 'a'), move.targetY + 1);
 }
 
 void print_x_coords()
