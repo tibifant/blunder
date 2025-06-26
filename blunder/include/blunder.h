@@ -156,3 +156,4 @@ chess_move get_alpha_beta_white(const chess_board &board);
 chess_move get_alpha_beta_black(const chess_board &board);
 
 void print_board(const chess_board &board);
+void print_move(const chess_move move);
