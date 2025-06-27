@@ -89,6 +89,9 @@ ipch/
 *.vsp
 *.vspx
 *.sap
+*.idb
+*.recipe
+*.tlog
 
 # TFS 2012 Local Workspace
 $tf/
@@ -271,3 +274,4 @@ Makefile
 # Additional Files
 builds/*
 * Advisor Result*/
+*/microsoft/STL/*

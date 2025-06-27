@@ -144,8 +144,8 @@ crow::response handle_get_board(const crow::request &req)
       const chess_piece piece = _CurrentBoard[vec2i8(x, y)];
       if (piece.piece != cpT_none)
       {
-        ret[x][y]["piece"] = pieceChars[piece.piece];
-        ret[x][y]["isWite"] = piece.isWhite;
+        ret[x][y]["piece"] = sformat(pieceChars[piece.piece]);
+        ret[x][y]["isWhite"] = piece.isWhite;
       }
     }
   }
