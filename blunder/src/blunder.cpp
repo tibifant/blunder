@@ -734,7 +734,8 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
 
   if constexpr (DepthRemaining == 0)
   {
-    return move_with_score({}, evaluate_chess_board(board));
+    const auto ret = move_with_score({}, evaluate_chess_board(board));
+    return ret;
   }
   else
   {
@@ -744,7 +745,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
     move_with_score ret;
     ret.move = {};
-    ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
+    ret.score = FindMin ? lsMaxValue<int64_t>() : -lsMaxValue<int64_t>();
 
     for (const chess_move move : moves)
     {
@@ -753,14 +754,16 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
 #endif
 
       const chess_board after = perform_move(board, move);
-      const move_with_score move_rating = alpha_beta_step<DepthRemaining - 1, !FindMin>(after, alpha, beta, cache);
+      const move_with_score moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
 
       if constexpr (FindMin)
       {
-        if (move_rating.score < ret.score)
+        if (moveRating.score < ret.score)
         {
-          ret = move_with_score(move, move_rating.score);
-          beta = lsMin(beta, ret.score);
+          ret.score = moveRating.score;
+
+          if (ret.score < beta)
+            beta = ret.score;
 
           if (ret.score <= alpha)
             break;
@@ -768,10 +771,12 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       }
       else
       {
-        if (move_rating.score > ret.score)
+        if (moveRating.score > ret.score)
         {
-          ret = move_with_score(move, move_rating.score);
-          alpha = lsMax(alpha, ret.score);
+          ret.score = moveRating.score;
+
+          if (ret.score > alpha)
+            alpha = ret.score;
 
           if (ret.score >= beta)
             break;
@@ -797,7 +802,7 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 6;
+constexpr size_t DefaultAlphaBetaDepth = 3;
 
 chess_move get_alpha_beta_white(const chess_board &board)
 {
@@ -805,7 +810,7 @@ chess_move get_alpha_beta_white(const chess_board &board)
   const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, false>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
 
 #ifdef _DEBUG
-  print(cache.nodesVisited, " nodes visited.\n");
+  print(cache.nodesVisited, " nodes visited. Final score: ", moveInfo.score, '\n');
 #endif
 
   return moveInfo.move;
@@ -817,7 +822,7 @@ chess_move get_alpha_beta_black(const chess_board &board)
   const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, true>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
 
 #ifdef _DEBUG
-  print(cache.nodesVisited, " nodes visited.\n");
+  print(cache.nodesVisited, " nodes visited. Final score: ", moveInfo.score, '\n');
 #endif
 
   return moveInfo.move;
@@ -901,6 +906,118 @@ DEFINE_TESTABLE(pawn_double_step_test)
   print_board(board);
 
   TESTABLE_ASSERT_FALSE(!!board[vec2i8(0, 3)].lastWasDoubleStep);
+
+  goto epilogue;
+epilogue:
+  return result;
+}
+
+
+template <size_t DepthRemaining, size_t MaxDepth, typename ...Args>
+void print_node(Args &&...args)
+{
+  const size_t pos = MaxDepth - DepthRemaining;
+
+  for (size_t i = 0; i < pos; i++)
+    print('\t');
+
+  print(args...);
+  print('\n');
+}
+
+struct test_cache
+{
+  int64_t *pScores;
+  size_t scoreCount;
+  size_t scoreIndex = 0;
+
+#ifdef _DEBUG
+  size_t nodesVisited = 0;
+#endif
+};
+
+template <size_t DepthRemaining, bool FindMin, size_t MaxDepth>
+int64_t alpha_beta_test_step(int64_t alpha, int64_t beta, test_cache &cache)
+{
+  static_assert(DepthRemaining <= MaxDepth);
+
+  if constexpr (DepthRemaining == 0)
+  {
+    const auto score = cache.pScores[cache.scoreIndex++ % cache.scoreCount];
+    print_node<DepthRemaining, MaxDepth>(score);
+    return score;
+  }
+  else
+  {
+    int64_t ret = FindMin ? lsMaxValue<int64_t>() : -lsMaxValue<int64_t>();
+
+    for (size_t i = 0; i < 2; i++)
+    {
+#ifdef _DEBUG
+      cache.nodesVisited++;
+#endif
+
+      const int64_t score = alpha_beta_test_step<DepthRemaining - 1, !FindMin, MaxDepth>(alpha, beta, cache);
+
+      if constexpr (FindMin)
+      {
+        if (score < ret)
+        {
+          ret = score;
+
+          if (ret < beta)
+            beta = ret;
+          
+          print_node<DepthRemaining, MaxDepth>(ret, " (a: ", alpha, ", b: ", beta, ")");
+
+          if (ret <= alpha)
+          {
+            print_node<DepthRemaining, MaxDepth>("ret <= alpha");
+            break;
+          }
+        }
+      }
+      else
+      {
+        if (score > ret)
+        {
+          ret = score;
+
+          if (ret > alpha)
+            alpha = ret;
+          
+          print_node<DepthRemaining, MaxDepth>(ret, " (a: ", alpha, ", b: ", beta, ")");
+
+          if (ret >= beta)
+          {
+            print_node<DepthRemaining, MaxDepth>("ret >= beta");
+            break;
+          }
+        }
+      }
+    }
+
+    print_node<DepthRemaining, MaxDepth>(ret, " (a: ", alpha, ", b: ", beta, ")");
+    return ret;
+  }
+}
+
+void alpha_beta_step_test()
+{
+  int64_t v[] = { -5, 3, 8, -4, -6, -19, -3, 10, 15, -1, 3, -15, -11, -13, -2 };
+  test_cache cache;
+  cache.pScores = v;
+  cache.scoreCount = LS_ARRAYSIZE(v);
+
+  alpha_beta_test_step<5, false, 5>(-lsMaxValue<int64_t>(), lsMaxValue<int64_t>(), cache); // -lsMinValue<int64_t>() is not depictable
+  print(cache.nodesVisited, " nodes visited.\n");
+}
+
+DEFINE_TESTABLE(alpha_beta_step)
+{
+  lsResult result = lsR_Success;
+
+  alpha_beta_step_test();
 
   goto epilogue;
 epilogue:
