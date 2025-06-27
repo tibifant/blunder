@@ -667,6 +667,9 @@ int64_t evaluate_chess_board(const chess_board &board)
     ret += signedScoreWithZero; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
   }
 
+  if (!board.isWhitesTurn)
+    ret = -ret;
+
   return ret;
 }
 
@@ -718,7 +721,10 @@ move_with_score minimax_step(const chess_board &board)
 template <size_t MaxDepth>
 struct minimax_cache
 {
-  small_list<chess_move> moves_at_level[MaxDepth];
+  small_list<chess_move> movesAtLevel[MaxDepth];
+#ifdef _DEBUG
+  size_t nodesVisited = 0;
+#endif
 };
 
 template <size_t DepthRemaining, bool FindMin, size_t MaxDepth>
@@ -732,7 +738,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
   }
   else
   {
-    small_list<chess_move> &moves = cache.moves_at_level[DepthRemaining - 1];
+    small_list<chess_move> &moves = cache.movesAtLevel[DepthRemaining - 1];
     list_clear(&moves);
 
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
@@ -742,6 +748,10 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
 
     for (const chess_move move : moves)
     {
+#ifdef _DEBUG
+      cache.nodesVisited++;
+#endif
+
       const chess_board after = perform_move(board, move);
       const move_with_score move_rating = alpha_beta_step<DepthRemaining - 1, !FindMin>(after, alpha, beta, cache);
 
@@ -787,19 +797,29 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 1;
+constexpr size_t DefaultAlphaBetaDepth = 6;
 
 chess_move get_alpha_beta_white(const chess_board &board)
 {
   minimax_cache<DefaultAlphaBetaDepth> cache;
-  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, true>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, false>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+
+#ifdef _DEBUG
+  print(cache.nodesVisited, " nodes visited.\n");
+#endif
+
   return moveInfo.move;
 }
 
 chess_move get_alpha_beta_black(const chess_board &board)
 {
   minimax_cache<DefaultAlphaBetaDepth> cache;
-  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, false>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, true>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+
+#ifdef _DEBUG
+  print(cache.nodesVisited, " nodes visited.\n");
+#endif
+
   return moveInfo.move;
 }
 

@@ -347,6 +347,13 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
       board[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
       currentPos.x++;
     }
+
+    const chess_board startBoard = chess_board::get_starting_point();
+
+    for (size_t i = 0; i < LS_ARRAYSIZE(startBoard.board); i++)
+      if (board.board[i].piece != startBoard.board[i].piece)
+        board.board[i].hasMoved = true;
+
   }
 
 epilogue:
