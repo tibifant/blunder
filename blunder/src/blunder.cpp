@@ -760,7 +760,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       {
         if (moveRating.score < ret.score)
         {
-          ret.score = moveRating.score;
+          ret = moveRating;
 
           if (ret.score < beta)
             beta = ret.score;
@@ -773,7 +773,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       {
         if (moveRating.score > ret.score)
         {
-          ret.score = moveRating.score;
+          ret = moveRating;
 
           if (ret.score > alpha)
             alpha = ret.score;
