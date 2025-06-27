@@ -745,7 +745,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
     move_with_score ret;
     ret.move = {};
-    ret.score = FindMin ? lsMaxValue<int64_t>() : -lsMaxValue<int64_t>();
+    ret.score = FindMin ? lsMaxValue<int64_t>() : -lsMaxValue<int64_t>();  // -lsMinValue<int64_t>() would not be depictable
 
     for (const chess_move move : moves)
     {
@@ -802,12 +802,12 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 3;
+constexpr size_t DefaultAlphaBetaDepth = 6;
 
 chess_move get_alpha_beta_white(const chess_board &board)
 {
   minimax_cache<DefaultAlphaBetaDepth> cache;
-  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, false>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, false>(board, -lsMaxValue<int64_t>(), lsMaxValue<int64_t>(), cache); // -lsMinValue<int64_t>() would not be depictable
 
 #ifdef _DEBUG
   print(cache.nodesVisited, " nodes visited. Final score: ", moveInfo.score, '\n');
@@ -819,7 +819,7 @@ chess_move get_alpha_beta_white(const chess_board &board)
 chess_move get_alpha_beta_black(const chess_board &board)
 {
   minimax_cache<DefaultAlphaBetaDepth> cache;
-  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, true>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, true>(board, -lsMaxValue<int64_t>(), lsMaxValue<int64_t>(), cache); // -lsMinValue<int64_t>() would not be depictable
 
 #ifdef _DEBUG
   print(cache.nodesVisited, " nodes visited. Final score: ", moveInfo.score, '\n');
