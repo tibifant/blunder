@@ -193,41 +193,39 @@ crow::response handle_move(const crow::request &req)
   const int8_t originY = (int8_t)(body["originY"].i());
   const int8_t destX = (int8_t)(body["destinationX"].i());
   const int8_t destY = (int8_t)(body["destinationY"].i());
+  const bool isPromotion = body["isPromotion"].b();
 
-  if (originX <= 0 || originX > BoardWidth || originY <= 0 || originY > BoardWidth || destX <= 0 || destX > BoardWidth || destY <= 0 || destY > BoardWidth)
+  if (originX < 0 || originX >= BoardWidth || originY < 0 || originY >= BoardWidth || destX < 0 || destX >= BoardWidth || destY < 0 || destY >= BoardWidth)
     return crow::response(crow::status::BAD_REQUEST);
 
   small_list<chess_move> moves;
   if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
-  chess_move chosenMove(vec2i8(originX, originY), vec2i8(destX, destY));
-  chosenMove.isPromotion = body["isPromotion"].b();
-
-  if (chosenMove.isPromotion)
-  {
-    if (!body.has("isPromotionToQueen"))
-      return crow::response(crow::status::BAD_REQUEST);
-
-    chosenMove.isPromotedToQueen = body["isPromotionToQueen"].b();
-  }
-
-  bool isValid = false;
+  std::optional<chess_move> chosenMove;
 
   for (const auto &move : moves)
   {
-    if (move.startX == chosenMove.startX && move.startY == chosenMove.startY && move.targetX == chosenMove.targetX && move.targetY == chosenMove.targetY)
+    if (move.startX == originX && move.startY == originY && move.targetX == destX && move.targetY == destY && move.isPromotion == isPromotion)
     {
-      isValid = true;
+      chosenMove = move;
       break;
     }
   }
 
-  if (!isValid)
+  if (!chosenMove.has_value())
     return crow::response(crow::status::BAD_REQUEST);
 
+  if (chosenMove.value().isPromotion)
+  {
+    if (!body.has("isPromotionToQueen"))
+      return crow::response(crow::status::BAD_REQUEST);
+
+    chosenMove.value().isPromotedToQueen = body["isPromotionToQueen"].b();
+  }
+
   // Perform move.
-  _CurrentBoard = perform_move(_CurrentBoard, chosenMove);
+  _CurrentBoard = perform_move(_CurrentBoard, chosenMove.value());
 
   // AI move.
   {
