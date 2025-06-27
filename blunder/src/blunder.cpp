@@ -667,8 +667,8 @@ int64_t evaluate_chess_board(const chess_board &board)
     ret += signedScoreWithZero; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
   }
 
-  if (!board.isWhitesTurn)
-    ret = -ret;
+  //if (!board.isWhitesTurn)
+    //ret = -ret;
 
   return ret;
 }
@@ -760,7 +760,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       {
         if (moveRating.score < ret.score)
         {
-          ret = moveRating;
+          ret = move_with_score(move, moveRating.score);
 
           if (ret.score < beta)
             beta = ret.score;
@@ -773,7 +773,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       {
         if (moveRating.score > ret.score)
         {
-          ret = moveRating;
+          ret = move_with_score(move, moveRating.score);
 
           if (ret.score > alpha)
             alpha = ret.score;
