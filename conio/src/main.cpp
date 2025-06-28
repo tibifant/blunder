@@ -30,6 +30,12 @@ int32_t main(const int32_t argc, char **pArgv)
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
 
+  if (!cpu_info::avx2Supported || !cpu_info::aesNiSupported)
+  {
+    print_error_line("CPU '", cpu_info::GetCpuName(), "' is not supported (AVX2, AES/NI required)");
+    return EXIT_FAILURE;
+  }
+
   run_testables();
 
   chess_board board = chess_board::get_starting_point();

@@ -74,6 +74,12 @@ int32_t main(const int32_t argc, const char **pArgv)
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
 
+  if (!cpu_info::avx2Supported || !cpu_info::aesNiSupported)
+  {
+    print_error_line("CPU '", cpu_info::GetCpuName(), "' is not supported (AVX2, AES/NI required)");
+    return EXIT_FAILURE;
+  }
+
   // Set Working Directory.
   do
   {
