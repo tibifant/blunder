@@ -252,9 +252,9 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
     chess_move move;
 
     if constexpr (IsWhite)
-      move = get_alpha_beta_white(board);
+      move = get_alpha_beta_move_white(board);
     else
-      move = get_alpha_beta_black(board);
+      move = get_alpha_beta_move_black(board);
 
     board = perform_move(board, move);
     print_played_move(move);

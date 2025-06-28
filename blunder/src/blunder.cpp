@@ -384,9 +384,10 @@ chess_hash_board chess_hash_board_create(const chess_board &board)
 
 uint64_t lsHash(const chess_hash_board &board)
 {
-  __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(board.nibbleMap));
-  v = _mm256_aesdec_epi128(v, v);
-  uint64_t ret = _mm256_extract_epi64(v, 0);
+  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
+  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
+  v0 = _mm_aesdec_si128(v0, v1);
+  uint64_t ret = _mm_extract_epi64(v0, 0);
   ret ^= board.isWhitesTurn;
   return ret;
 }
@@ -751,6 +752,11 @@ struct alpha_beta_minimax_cache
 #ifdef _DEBUG
   size_t nodesVisited = 0;
   size_t duplicatesRejected = 0;
+  chess_move currentMove[MaxDepth];
+  chess_move highestMove[MaxDepth];
+  chess_move lowestMove[MaxDepth];
+  int64_t lowestScore = lsMaxValue<int64_t>();
+  int64_t highestScore = lsMinValue<int64_t>();
 #endif
 
   constexpr static size_t hashBits = 20;
@@ -805,6 +811,21 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
   {
     const move_with_score ret = move_with_score({}, evaluate_chess_board(board));
     //alpha_beta_minimax_cache_store(cache, hashBoard, hash, ret);
+
+#ifdef _DEBUG
+    if (ret.score > cache.highestScore)
+    {
+      lsMemcpy(cache.highestMove, cache.currentMove, MaxDepth);
+      cache.highestScore = ret.score;
+    }
+
+    if (ret.score < cache.lowestScore)
+    {
+      lsMemcpy(cache.lowestMove, cache.currentMove, MaxDepth);
+      cache.lowestScore = ret.score;
+    }
+#endif
+
     return ret;
   }
   else
@@ -825,7 +846,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
     move_with_score ret;
     ret.move = {};
-    ret.score = FindMin ? lsMaxValue<int64_t>() : -lsMaxValue<int64_t>();  // -lsMinValue<int64_t>() would not be depictable
+    ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
 
     for (const chess_move move : moves)
     {
@@ -834,6 +855,10 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
 #endif
 
       const chess_board after = perform_move(board, move);
+
+#ifdef _DEBUG
+      cache.currentMove[DepthRemaining - 1] = move;
+#endif
       const move_with_score moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
 
       if constexpr (FindMin)
@@ -901,17 +926,35 @@ chess_move get_alpha_beta_move(const chess_board &board)
   const int64_t after = lsGetCurrentTimeNs();
 
   print(FU(Group)(cache.nodesVisited), " nodes visited, ", FU(Group)(cache.duplicatesRejected), " duplicates rejected (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s). Final score: ", moveInfo.score, '\n');
+
+  print("\nHighest Moves (highest score: ", cache.highestScore, "):\n");
+
+  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  {
+    print_move(cache.highestMove[i]);
+    print(", ");
+  }
+
+  print("\nLowest Moves (lowest score: ", cache.lowestScore, "):\n");
+
+  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  {
+    print_move(cache.lowestMove[i]);
+    print(", ");
+  }
+
+  print('\n');
 #endif
 
   return moveInfo.move;
 }
 
-chess_move get_alpha_beta_white(const chess_board &board)
+chess_move get_alpha_beta_move_white(const chess_board &board)
 {
   return get_alpha_beta_move<true>(board);
 }
 
-chess_move get_alpha_beta_black(const chess_board &board)
+chess_move get_alpha_beta_move_black(const chess_board &board)
 {
   return get_alpha_beta_move<false>(board);
 }
