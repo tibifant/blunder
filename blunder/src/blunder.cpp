@@ -163,7 +163,7 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
   const vec2i8 diagonalLeftTargetPos = vec2i8(targetPos.x - 1, targetPos.y);
   const vec2i8 diagonalRightTargetPos = vec2i8(targetPos.x + 1, targetPos.y);
 
-  if (!board[targetPos].piece)
+  if (targetPos.y < BoardWidth && targetPos.y >= 0 && !board[targetPos].piece)
   {
     if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[doubleStepTargetPos].piece)
       LS_ERROR_CHECK(add_valid_move(startPos, doubleStepTargetPos, board, moves, cmt_pawn_double_step));
@@ -788,7 +788,7 @@ bool alpha_beta_minimax_cache_find(const alpha_beta_minimax_cache<MaxDepth> &cac
 template <size_t MaxDepth>
 void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, chess_hash_board &board, const uint64_t hash, const move_with_score ret)
 {
-  board.score = (int16_t)ret.score;
+  board.score = (int32_t)ret.score;
   board.move = ret.move;
   cache.pCache[hash] = std::move(board);
 }
