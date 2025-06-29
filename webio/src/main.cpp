@@ -165,7 +165,7 @@ crow::response handle_get_valid_moves(const crow::request &req)
 
   crow::json::wvalue ret;
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
@@ -204,7 +204,7 @@ crow::response handle_move(const crow::request &req)
   if (originX < 0 || originX >= BoardWidth || originY < 0 || originY >= BoardWidth || destX < 0 || destX >= BoardWidth || destY < 0 || destY >= BoardWidth)
     return crow::response(crow::status::BAD_REQUEST);
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "core.h"
-#include "small_list.h"
+#include "list.h"
 
 enum chess_piece_type : uint8_t
 {
@@ -168,7 +168,7 @@ static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 chess_hash_board chess_hash_board_create(const chess_board &board);
 uint64_t lsHash(const chess_hash_board &board);
 
-lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves);
+lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
 
 chess_board perform_move(const chess_board &board, const chess_move move);
 int64_t evaluate_chess_board(const chess_board &board);

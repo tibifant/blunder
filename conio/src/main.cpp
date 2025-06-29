@@ -17,12 +17,12 @@ enum ai_type
 };
 
 template <bool IsWhite>
-void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_type from_input);
+void perform_move(chess_board &board, list<chess_move> &moves, const ai_type from_input);
 
 void print_board(const chess_board &board);
 char read_char();
 lsResult read_start_position_from_file(const char *filename, chess_board &board);
-chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves);
+chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +97,7 @@ int32_t main(const int32_t argc, char **pArgv)
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   print_board(board);
 
   while (true)
@@ -125,7 +125,7 @@ void print_played_move(const chess_move move)
   print("Played Move: ", (char)(move.startX + 'a'), move.startY + 1, (char)(move.targetX + 'a'), move.targetY + 1, "\n\n");
 }
 
-chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves)
+chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves)
 {
   while (true)
   {
@@ -209,7 +209,7 @@ chess_move get_move_from_input(const chess_board &board, small_list<chess_move> 
 }
 
 template <bool IsWhite>
-void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_type ai)
+void perform_move(chess_board &board, list<chess_move> &moves, const ai_type ai)
 {
   switch (ai)
   {

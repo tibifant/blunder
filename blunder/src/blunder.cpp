@@ -121,7 +121,7 @@ __forceinline bool is_cancel(const lsResult result)
   return LS_FAILED(result);
 }
 
-__forceinline lsResult list_add_adapter(small_list<chess_move> &moves, const chess_move &move, const chess_board &)
+__forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_move &move, const chess_board &)
 {
   return list_add(&moves, move);
 }
@@ -424,11 +424,11 @@ auto get_all_valid_moves(const chess_board &board, TParam &param)
   return result;
 }
 
-lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves)
+lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves)
 {
   list_clear(&moves);
 
-  return get_all_valid_moves<list_add_adapter, lsR_Success, small_list<chess_move>>(board, moves);
+  return get_all_valid_moves<list_add_adapter, lsR_Success, list<chess_move>>(board, moves);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -769,7 +769,7 @@ move_with_score minimax_step(const chess_board &board)
   }
   else
   {
-    small_list<chess_move> moves;
+    list<chess_move> moves;
     list_clear(&moves);
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
     move_with_score ret;
@@ -815,7 +815,7 @@ constexpr bool UseCache = false;
 template <size_t MaxDepth>
 struct alpha_beta_minimax_cache
 {
-  small_list<chess_move> movesAtLevel[MaxDepth];
+  list<chess_move> movesAtLevel[MaxDepth];
   chess_move currentMove[MaxDepth];
 #ifdef _DEBUG
   size_t nodesVisited = 0;
@@ -907,7 +907,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
   }
   else
   {
-    small_list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
+    list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
     list_clear(&moves);
 
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
