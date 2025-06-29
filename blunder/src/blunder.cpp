@@ -772,6 +772,9 @@ struct alpha_beta_minimax_cache
   chess_move lowestMove[MaxDepth];
   int64_t lowestScore = lsMaxValue<int64_t>();
   int64_t highestScore = lsMinValue<int64_t>();
+
+  int64_t stepMin[MaxDepth];
+  int64_t stepMax[MaxDepth];
 #endif
 
   constexpr static size_t hashBits = 20;
@@ -779,6 +782,17 @@ struct alpha_beta_minimax_cache
   constexpr static size_t hashMask = hashValues - 1;
 
   chess_hash_board *pCache = nullptr;
+
+  alpha_beta_minimax_cache()
+  {
+#ifdef _DEBUG
+    for (size_t i = 0; i < MaxDepth; i++)
+    {
+      stepMin[i] = lsMaxValue<int64_t>();
+      stepMax[i] = lsMinValue<int64_t>();
+    }
+#endif
+  }
 
   ~alpha_beta_minimax_cache()
   {
@@ -858,6 +872,11 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
       cache.currentMove[MaxDepth - DepthRemaining] = move;
 
       const moves_with_score<MaxDepth> moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
+
+#ifdef _DEBUG
+      cache.stepMin[MaxDepth - DepthRemaining] = lsMin(moveRating.score, cache.stepMin[MaxDepth - DepthRemaining]);
+      cache.stepMax[MaxDepth - DepthRemaining] = lsMax(moveRating.score, cache.stepMax[MaxDepth - DepthRemaining]);
+#endif
 
       if constexpr (FindMin)
       {
@@ -947,6 +966,11 @@ chess_move get_alpha_beta_move(const chess_board &board)
     print_move(cache.lowestMove[i]);
     print(", ");
   }
+
+  print("\nRating Distribution:\n");
+
+  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+    print(cache.stepMin[i], " ~ ", cache.stepMax[i], ", ");
 
   print('\n');
 #endif

@@ -161,7 +161,7 @@ struct chess_hash_board
 static_assert(_chess_piece_type_count <= (1 << 3));
 
 #ifndef _DEBUG
-static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 2);
+static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 #endif
 
 chess_hash_board chess_hash_board_create(const chess_board &board);
