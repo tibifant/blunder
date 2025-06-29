@@ -594,74 +594,74 @@ struct square_weights
 
 static const square_weights SquareWeights[] = { // https://www.talkchess.com/forum/viewtopic.php?p=553266#p553266
   square_weights({ // none
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
   }),
   square_weights({ // king
-  -40, -33, -26, -20, -20, -26, -33, -40,
-  -33, -26, -20, -13, -13, -20, -26, -33,
-  -26, -20, -13,  -7,  -7, -13, -20, -26,
-  -20, -13,  -7,   0,   0,  -7, -13, -20,
-  -20, -13,  -7,   0,   0,  -7, -13, -20,
-  -26, -20, -13,  -7,  -7, -13, -20, -26,
-  -23, -16, -10,  -3,  -3, -10, -16, -23,
-  -25, -13,  -6,  -5,   0, -11, -13, -25
+    20, 30, 10, 0, 0, 10, 30, 20,
+    20, 20, 0, 0, 0, 0, 20, 20,
+    -10, -20, -20, -20, -20, -20, -20, -10,
+    -20, -30, -30, -40, -40, -30, -30, -20,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30
   }),
   square_weights({ // queen
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0
+    -20, -10, -10, -5, -5, -10, -10, -20,
+    -10, 0, 0, 0, 0, 0, 0, -10,
+    -10, 5, 5, 5, 5, 5, 0, -10,
+    0, 0, 5, 5, 5, 5, 0, -5,
+    -5, 0, 5, 5, 5, 5, 0, -5,
+    -10, 0, 5, 5, 5, 5, 0, -10,
+    -10, 0, 0, 0, 0, 0, 0, -10,
+    -20, -10, -10, -5, -5, -10, -10, -20
   }),
   square_weights({ // rook
-  0,  0,  0,  0,  0,  0,  0,  0,
-  20, 20, 20, 20, 20, 20, 20, 20,
-  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0,
-  0,  0,  0,  0,  0,  0,  0,  0
+     0, 0, 0, 5, 5, 0, 0, 0,
+    -5, 0, 0, 0, 0, 0, 0, -5,
+    -5, 0, 0, 0, 0, 0, 0, -5,
+    -5, 0, 0, 0, 0, 0, 0, -5,
+    -5, 0, 0, 0, 0, 0, 0, -5,
+    -5, 0, 0, 0, 0, 0, 0, -5,
+    5, 10, 10, 10, 10, 10, 10, 5,
+    0, 0, 0, 0, 0, 0, 0, 0
   }),
   square_weights({ // bishop
-  -10,  -6,  -3,   0,   0,  -3,  -6, -10,
-   -6,  -3,   0,   3,   3,   0,  -3,  -6,
-   -3,   0,   3,   6,   6,   3,   0,  -3,
-    0,   3,   6,  10,  10,   6,   3,   0,
-    0,   3,   6,  10,  10,   6,   3,   0,
-   -3,   0,   3,   6,   6,   3,   0,  -3,
-   -6,  -3,   0,   3,   3,   0,  -3,  -6,
-  -10,  -6,  -3,   0,   0,  -3,  -6, -10
+    -20, -10, -10, -10, -10, -10, -10, -20,
+    -10, 5, 0, 0, 0, 0, 5, -10,
+    -10, 10, 10, 10, 10, 10, 10, -10,
+    -10, 0, 10, 10, 10, 10, 0, -10,
+    -10, 5, 5, 10, 10, 5, 5, -10,
+    -10, 0, 5, 10, 10, 5, 0, -10,
+    -10, 0, 0, 0, 0, 0, 0, -10,
+    -20, -10, -10, -10, -10, -10, -10, -20
   }),
   square_weights({ // knight
-  -10,  -6,  -3,   0,   0,  -3,  -6, -10,
-   -6,  -3,   0,   3,   3,   0,  -3,  -6,
-   -3,   0,   3,   6,   6,   3,   0,  -3,
-    0,   3,   6,  10,  10,   6,   3,   0,
-    0,   3,   6,  10,  10,   6,   3,   0,
-   -3,   0,   3,   6,   6,   3,   0,  -3,
-   -6,  -3,   0,   3,   3,   0,  -3,  -6,
-  -10,  -6,  -3,   0,   0,  -3,  -6, -10
+    -50, -40, -30, -30, -30, -30, -40, -50,
+    -40, -20, 0, 5, 5, 0, -20, -40,
+    -30, 5, 10, 15, 15, 10, 5, -30,
+    -30, 0, 15, 20, 20, 15, 0, -30,
+    -30, 5, 15, 20, 20, 15, 5, -30,
+    -30, 0, 10, 15, 15, 10, 0, -30,
+    -40, -20, 0, 0, 0, 0, -20, -40,
+    -50, -40, -30, -30, -30, -30, -40, -50
   }),
   square_weights({ // pawn
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,  10,  10,   0,   0,   0,
-  0,   0,   5,  10,  10,   5,   0,   0,
-  0,   0,   5,  10,  10,   5,   0,   0,
-  0,   0,   5,   5,   5,   5,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0,
-  0,   0,   0,   0,   0,   0,   0,   0
+    0, 0, 0, 0, 0, 0, 0, 0,
+    5, 10, 10, -20, -20, 10, 10, 5,
+    5, -5, -10, 0, 0, -10, -5, 5,
+    0, 0, 0, 20, 20, 0, 0, 0,
+    5, 5, 10, 25, 25, 10, 5, 5,
+    10, 10, 20, 30, 30, 20, 10, 10,
+    50, 50, 50, 50, 50, 50, 50, 50,
+    0, 0, 0, 0, 0, 0, 0, 0
   })
 };
 
@@ -828,12 +828,12 @@ void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, c
   cache.pCache[hash] = std::move(board);
 }
 
-template <size_t DepthRemaining, bool FindMin, size_t MaxDepth>
+template <bool FindMin, size_t MaxDepth, size_t DepthIndex = 0>
 moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<MaxDepth> &cache)
 {
-  static_assert(DepthRemaining <= MaxDepth);
+  static_assert(DepthIndex <= MaxDepth);
 
-  if constexpr (DepthRemaining == 0)
+  if constexpr (DepthIndex == MaxDepth)
   {
     const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, evaluate_chess_board(board));
 
@@ -855,7 +855,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
   }
   else
   {
-    small_list<chess_move> &moves = cache.movesAtLevel[MaxDepth - DepthRemaining];
+    small_list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
     list_clear(&moves);
 
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
@@ -869,13 +869,13 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
 #endif
 
       const chess_board after = perform_move(board, move);
-      cache.currentMove[MaxDepth - DepthRemaining] = move;
+      cache.currentMove[DepthIndex] = move;
 
-      const moves_with_score<MaxDepth> moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
+      const moves_with_score<MaxDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, DepthIndex + 1>(after, alpha, beta, cache);
 
 #ifdef _DEBUG
-      cache.stepMin[MaxDepth - DepthRemaining] = lsMin(moveRating.score, cache.stepMin[MaxDepth - DepthRemaining]);
-      cache.stepMax[MaxDepth - DepthRemaining] = lsMax(moveRating.score, cache.stepMax[MaxDepth - DepthRemaining]);
+      cache.stepMin[DepthIndex] = lsMin(moveRating.score, cache.stepMin[DepthIndex]);
+      cache.stepMax[DepthIndex] = lsMax(moveRating.score, cache.stepMax[DepthIndex]);
 #endif
 
       if constexpr (FindMin)
@@ -924,19 +924,19 @@ chess_move get_minimax_move_black(const chess_board &board)
   return moveInfo.move;
 }
 
-constexpr size_t DefaultAlphaBetaDepth = 6;
-
 template <bool IsWhite>
 chess_move get_alpha_beta_move(const chess_board &board)
 {
+  constexpr size_t Depth = 6;
+
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
 #endif
 
-  alpha_beta_minimax_cache<DefaultAlphaBetaDepth> cache;
+  alpha_beta_minimax_cache<Depth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
 
-  const moves_with_score<DefaultAlphaBetaDepth> moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, !IsWhite>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const moves_with_score<Depth> moveInfo = alpha_beta_step<!IsWhite>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
 
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
@@ -945,7 +945,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
 
   print("\nBest Moves (rating: ", moveInfo.score, "):\n");
 
-  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  for (size_t i = 0; i < Depth; i++)
   {
     print_move(moveInfo.moves[i]);
     print(", ");
@@ -953,7 +953,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
 
   print("\nBest move combination for white (rating: ", cache.highestScore, "):\n");
 
-  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  for (size_t i = 0; i < Depth; i++)
   {
     print_move(cache.highestMove[i]);
     print(", ");
@@ -961,7 +961,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
 
   print("\nBest move combination for black (rating: ", cache.lowestScore, "):\n");
 
-  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  for (size_t i = 0; i < Depth; i++)
   {
     print_move(cache.lowestMove[i]);
     print(", ");
@@ -969,7 +969,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
 
   print("\nRating Distribution:\n");
 
-  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  for (size_t i = 0; i < Depth; i++)
     print(cache.stepMin[i], " ~ ", cache.stepMax[i], ", ");
 
   print('\n');
@@ -986,6 +986,117 @@ chess_move get_alpha_beta_move_white(const chess_board &board)
 chess_move get_alpha_beta_move_black(const chess_board &board)
 {
   return get_alpha_beta_move<false>(board);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+template <size_t Depth, size_t MaxDepth, bool FindMin>
+moves_with_score<MaxDepth> alpha_beta_aspiration(const chess_board &board, const int64_t guess, alpha_beta_minimax_cache<MaxDepth> &cache)
+{
+  constexpr int64_t delta = 50;
+  const int64_t alpha = guess - delta;
+  const int64_t beta = guess + delta;
+
+  moves_with_score<MaxDepth> ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, beta, cache);
+
+  print("\taspiration: ", Depth, " / ", MaxDepth, ": ", ret.score, " (", alpha, " ~ ", beta, ")");
+
+  if (ret.score <= alpha)
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, lsMinValue<int64_t>(), beta, cache);
+  else if (ret.score >= beta)
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, lsMaxValue<int64_t>(), cache);
+
+  print(" => ", ret.score, '\n');
+
+  return ret;
+}
+
+template <bool FindMin, size_t MaxDepth, size_t Depth = 1>
+void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_cache<MaxDepth> &cache, moves_with_score<MaxDepth> &ret)
+{
+  static_assert(Depth > 0);
+
+  if constexpr (Depth == 1)
+  {
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+
+    print("\titerative deepen: ", Depth, " / ", MaxDepth, ": ", ret.score, '\n');
+
+    if constexpr (MaxDepth > Depth)
+      alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
+  }
+  else
+  {
+    ret = alpha_beta_aspiration<Depth, MaxDepth, FindMin>(board, ret.score, cache);
+
+    if constexpr (MaxDepth > Depth)
+      alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
+  }
+}
+
+template <bool IsWhite>
+chess_move get_complex_move(const chess_board &board)
+{
+  constexpr size_t Depth = 6;
+
+#ifdef _DEBUG
+  const int64_t before = lsGetCurrentTimeNs();
+#endif
+
+  alpha_beta_minimax_cache<Depth> cache;
+  LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
+
+  moves_with_score<Depth> moveInfo;
+  alpha_beta_iterative_deepen<!IsWhite>(board, cache, moveInfo);
+
+#ifdef _DEBUG
+  const int64_t after = lsGetCurrentTimeNs();
+
+  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
+
+  print("\nBest Moves (rating: ", moveInfo.score, "):\n");
+
+  for (size_t i = 0; i < Depth; i++)
+  {
+    print_move(moveInfo.moves[i]);
+    print(", ");
+  }
+
+  print("\nBest move combination for white (rating: ", cache.highestScore, "):\n");
+
+  for (size_t i = 0; i < Depth; i++)
+  {
+    print_move(cache.highestMove[i]);
+    print(", ");
+  }
+
+  print("\nBest move combination for black (rating: ", cache.lowestScore, "):\n");
+
+  for (size_t i = 0; i < Depth; i++)
+  {
+    print_move(cache.lowestMove[i]);
+    print(", ");
+  }
+
+  print("\nRating Distribution:\n");
+
+  for (size_t i = 0; i < Depth; i++)
+    print(cache.stepMin[i], " ~ ", cache.stepMax[i], ", ");
+
+  print('\n');
+#endif
+
+  return moveInfo.moves[0];
+}
+
+chess_move get_complex_move_white(const chess_board &board)
+{
+  return get_complex_move<true>(board);
+}
+
+chess_move get_complex_move_black(const chess_board &board)
+{
+  return get_complex_move<false>(board);
 }
 
 //////////////////////////////////////////////////////////////////////////

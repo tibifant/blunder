@@ -13,6 +13,7 @@ enum ai_type
   ait_random,
   ait_minimax,
   ait_alphabeta,
+  ait_complex,
 };
 
 template <bool IsWhite>
@@ -40,7 +41,7 @@ int32_t main(const int32_t argc, char **pArgv)
 
   chess_board board = chess_board::get_starting_point();
   ai_type white_player = ait_player;
-  ai_type black_player = ait_alphabeta;
+  ai_type black_player = ait_complex;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {
@@ -60,6 +61,10 @@ int32_t main(const int32_t argc, char **pArgv)
       white_player = ait_alphabeta;
     else if (lsStringEquals("--alphabeta-black", pArgv[i]))
       black_player = ait_alphabeta;
+    else if (lsStringEquals("--complex-white", pArgv[i]))
+      white_player = ait_complex;
+    else if (lsStringEquals("--complex-black", pArgv[i]))
+      black_player = ait_complex;
     else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
       lsFail();
   }
@@ -255,6 +260,21 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const ai_ty
       move = get_alpha_beta_move_white(board);
     else
       move = get_alpha_beta_move_black(board);
+
+    board = perform_move(board, move);
+    print_played_move(move);
+
+    break;
+  }
+
+  case ait_complex:
+  {
+    chess_move move;
+
+    if constexpr (IsWhite)
+      move = get_complex_move_white(board);
+    else
+      move = get_complex_move_black(board);
 
     board = perform_move(board, move);
     print_played_move(move);

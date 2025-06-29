@@ -1,4 +1,5 @@
 #pragma once
+#pragma once
 
 #include "core.h"
 #include "small_list.h"
@@ -176,6 +177,8 @@ chess_move get_minimax_move_white(const chess_board &board);
 chess_move get_minimax_move_black(const chess_board &board);
 chess_move get_alpha_beta_move_white(const chess_board &board);
 chess_move get_alpha_beta_move_black(const chess_board &board);
+chess_move get_complex_move_white(const chess_board &board);
+chess_move get_complex_move_black(const chess_board &board);
 
 void print_board(const chess_board &board);
 void print_move(const chess_move move);
