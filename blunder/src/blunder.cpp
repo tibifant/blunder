@@ -746,13 +746,28 @@ move_with_score minimax_step(const chess_board &board)
 }
 
 template <size_t MaxDepth>
+struct moves_with_score
+{
+  chess_move moves[MaxDepth];
+  int64_t score;
+
+  moves_with_score() = default;
+  moves_with_score(const chess_move moves[MaxDepth], const int64_t score) : score(score)
+  {
+    lsMemcpy(this->moves, moves, LS_ARRAYSIZE(this->moves));
+  }
+};
+
+constexpr bool UseCache = false;
+
+template <size_t MaxDepth>
 struct alpha_beta_minimax_cache
 {
   small_list<chess_move> movesAtLevel[MaxDepth];
+  chess_move currentMove[MaxDepth];
 #ifdef _DEBUG
   size_t nodesVisited = 0;
   size_t duplicatesRejected = 0;
-  chess_move currentMove[MaxDepth];
   chess_move highestMove[MaxDepth];
   chess_move lowestMove[MaxDepth];
   int64_t lowestScore = lsMaxValue<int64_t>();
@@ -800,17 +815,13 @@ void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, c
 }
 
 template <size_t DepthRemaining, bool FindMin, size_t MaxDepth>
-move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<MaxDepth> &cache)
+moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<MaxDepth> &cache)
 {
   static_assert(DepthRemaining <= MaxDepth);
 
-  chess_hash_board hashBoard = chess_hash_board_create(board);
-  uint64_t hash;
-
   if constexpr (DepthRemaining == 0)
   {
-    const move_with_score ret = move_with_score({}, evaluate_chess_board(board));
-    //alpha_beta_minimax_cache_store(cache, hashBoard, hash, ret);
+    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, evaluate_chess_board(board));
 
 #ifdef _DEBUG
     if (ret.score > cache.highestScore)
@@ -830,22 +841,11 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
   }
   else
   {
-    {
-      move_with_score ret;
-
-      if (alpha_beta_minimax_cache_find(cache, hashBoard, hash, ret))
-      {
-        cache.duplicatesRejected++;
-        return ret;
-      }
-    }
-
-    small_list<chess_move> &moves = cache.movesAtLevel[DepthRemaining - 1];
+    small_list<chess_move> &moves = cache.movesAtLevel[MaxDepth - DepthRemaining];
     list_clear(&moves);
 
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
-    move_with_score ret;
-    ret.move = {};
+    moves_with_score<MaxDepth> ret;
     ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
 
     for (const chess_move move : moves)
@@ -855,17 +855,15 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
 #endif
 
       const chess_board after = perform_move(board, move);
+      cache.currentMove[MaxDepth - DepthRemaining] = move;
 
-#ifdef _DEBUG
-      cache.currentMove[DepthRemaining - 1] = move;
-#endif
-      const move_with_score moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
+      const moves_with_score<MaxDepth> moveRating = alpha_beta_step<DepthRemaining - 1, !FindMin, MaxDepth>(after, alpha, beta, cache);
 
       if constexpr (FindMin)
       {
         if (moveRating.score < ret.score)
         {
-          ret = move_with_score(move, moveRating.score);
+          ret = moveRating;
 
           if (ret.score < beta)
             beta = ret.score;
@@ -878,7 +876,7 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       {
         if (moveRating.score > ret.score)
         {
-          ret = move_with_score(move, moveRating.score);
+          ret = moveRating;
 
           if (ret.score > alpha)
             alpha = ret.score;
@@ -889,7 +887,6 @@ move_with_score alpha_beta_step(const chess_board &board, int64_t alpha, int64_t
       }
     }
 
-    alpha_beta_minimax_cache_store(cache, hashBoard, hash, ret);
     return ret;
   }
 }
@@ -920,14 +917,22 @@ chess_move get_alpha_beta_move(const chess_board &board)
   alpha_beta_minimax_cache<DefaultAlphaBetaDepth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
 
-  const move_with_score moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, !IsWhite>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const moves_with_score<DefaultAlphaBetaDepth> moveInfo = alpha_beta_step<DefaultAlphaBetaDepth, !IsWhite>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
 
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
 
-  print(FU(Group)(cache.nodesVisited), " nodes visited, ", FU(Group)(cache.duplicatesRejected), " duplicates rejected (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s). Final score: ", moveInfo.score, '\n');
+  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
 
-  print("\nHighest Moves (highest score: ", cache.highestScore, "):\n");
+  print("\nBest Moves (rating: ", moveInfo.score, "):\n");
+
+  for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
+  {
+    print_move(moveInfo.moves[i]);
+    print(", ");
+  }
+
+  print("\nBest move combination for white (rating: ", cache.highestScore, "):\n");
 
   for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
   {
@@ -935,7 +940,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
     print(", ");
   }
 
-  print("\nLowest Moves (lowest score: ", cache.lowestScore, "):\n");
+  print("\nBest move combination for black (rating: ", cache.lowestScore, "):\n");
 
   for (size_t i = 0; i < DefaultAlphaBetaDepth; i++)
   {
@@ -946,7 +951,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
   print('\n');
 #endif
 
-  return moveInfo.move;
+  return moveInfo.moves[0];
 }
 
 chess_move get_alpha_beta_move_white(const chess_board &board)
@@ -990,7 +995,7 @@ void print_board(const chess_board &board)
     for (int8_t x = 0; x < 8; x++)
     {
       const chess_piece piece = board[vec2i8(x, y)];
-      lsSetConsoleColor(piece.isWhite ? lsCC_White : lsCC_Black, ((x ^ y) & 1) ? lsCC_BrightCyan : lsCC_DarkBlue);
+      lsSetConsoleColor(piece.isWhite ? lsCC_White : lsCC_Black, ((x ^ y) & 1) ? lsCC_BrightCyan : lsCC_BrightBlue);
       lsAssert(piece.piece < _chess_piece_type_count);
       print(' ', pieces[piece.piece], ' ');
     }
