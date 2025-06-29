@@ -60,22 +60,7 @@ bool is_check_for_position(const chess_board &board, const vec2i8 pos, const boo
 {
   lsAssert(pos.x >= 0 && pos.x < BoardWidth && pos.y >= 0 && pos.y < BoardWidth);
 
-  if (is_check_straight(board, pos, isWhite, vec2i8(0, 1)))
-    return true;
-
-  if (is_check_straight(board, pos, isWhite, vec2i8(0, -1)))
-    return true;
-
-  if (is_check_straight(board, pos, isWhite, vec2i8(1, 0)))
-    return true;
-
-  if (is_check_straight(board, pos, isWhite, vec2i8(-1, 0)))
-    return true;
-
-  if (is_check_diagonal(board, pos, isWhite, vec2i8(1, 1)))
-    return true;
-
-  if (is_check_diagonal(board, pos, isWhite, vec2i8(-1, -1)))
+  if (is_check_straight(board, pos, isWhite, vec2i8(0, 1)) || is_check_straight(board, pos, isWhite, vec2i8(0, -1)) || is_check_straight(board, pos, isWhite, vec2i8(1, 0)) || is_check_straight(board, pos, isWhite, vec2i8(-1, 0)) || is_check_diagonal(board, pos, isWhite, vec2i8(1, 1)) || is_check_diagonal(board, pos, isWhite, vec2i8(-1, -1)))
     return true;
 
   // pawns
@@ -112,27 +97,64 @@ bool is_check_for_position(const chess_board &board, const vec2i8 pos, const boo
 
 //////////////////////////////////////////////////////////////////////////
 
-__forceinline lsResult add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, small_list<chess_move> &moves, [[maybe_unused]] const chess_move_type type)
+template <typename T>
+struct result_of;
+
+template <typename TRet, typename ...TArgs>
+struct result_of<TRet(TArgs...)>
 {
-  if (destination.x >= 0 && destination.x < BoardWidth && destination.y >= 0 && destination.y < BoardWidth && (!board[destination].piece || board[destination].isWhite != board.isWhitesTurn))
-    return list_add(&moves, chess_move(origin, destination, type));
-  else
-    return lsR_Success;
+  using type = TRet;
+};
+
+template <typename T>
+using result_of_t = result_of<T>::type;
+
+template <auto TFunc, auto TResultNop, typename TParam>
+concept TFuncIsValid = requires (const decltype(TResultNop) ret) {
+  { is_cancel(ret) } -> std::same_as<bool>;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+__forceinline bool is_cancel(const lsResult result)
+{
+  return LS_FAILED(result);
 }
 
-__forceinline lsResult add_valid_move(const chess_move move, const chess_board &board, small_list<chess_move> &moves)
+__forceinline lsResult list_add_adapter(small_list<chess_move> &moves, const chess_move &move, const chess_board &)
+{
+  return list_add(&moves, move);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+auto add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, TParam &param, [[maybe_unused]] const chess_move_type type)
+{
+  if (destination.x >= 0 && destination.x < BoardWidth && destination.y >= 0 && destination.y < BoardWidth && (!board[destination].piece || board[destination].isWhite != board.isWhitesTurn))
+    return TFunc(param, chess_move(origin, destination, type), board);
+  else
+    return TResultNop;
+}
+
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+auto add_valid_move(const chess_move move, const chess_board &board, TParam &param)
 {
   const vec2i8 dest = vec2i8(move.targetX, move.targetY);
 
   if (move.targetX >= 0 && move.targetX < BoardWidth && move.targetY >= 0 && move.targetY < BoardWidth && (!board[dest].piece || board[dest].isWhite != board.isWhitesTurn))
-    return list_add(&moves, move);
+    return TFunc(param, move, board);
   else
-    return lsR_Success;
+    return TResultNop;
 }
 
-inline lsResult add_repeated_moves(const chess_board &board, const vec2i8 startPos, const vec2i8 dir, small_list<chess_move> &moves, [[maybe_unused]] const chess_move_type type)
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+inline auto add_repeated_moves(const chess_board &board, const vec2i8 startPos, const vec2i8 dir, TParam &param, [[maybe_unused]] const chess_move_type type)
 {
-  lsResult result = lsR_Success;
+  auto result = TResultNop;
 
   lsAssert(startPos.x >= 0 && startPos.x < BoardWidth && startPos.y >= 0 && startPos.y < BoardWidth);
 
@@ -142,20 +164,22 @@ inline lsResult add_repeated_moves(const chess_board &board, const vec2i8 startP
 
     if (targetPos.x >= 0 && targetPos.x < BoardWidth && targetPos.y >= 0 && targetPos.y < BoardWidth)
     {
-      LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves, type));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPos, board, param, type)))
+        return result;
 
       if (board[targetPos].piece)
         break;
     }
   }
 
-epilogue:
   return result;
 }
 
-__forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<chess_move> &moves, const vec2i8 startPos)
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const vec2i8 startPos)
 {
-  lsResult result = lsR_Success;
+  auto result = TResultNop;
 
   const vec2i8 dir = board[startPos].isWhite ? vec2i8(0, 1) : vec2i8(0, -1);
   const vec2i8 targetPos = vec2i8(startPos + dir);
@@ -166,7 +190,10 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
   if (targetPos.y < BoardWidth && targetPos.y >= 0 && !board[targetPos].piece)
   {
     if (((board.isWhitesTurn && startPos.y == 1) || (!board[startPos].isWhite && startPos.y == 6)) && !board[doubleStepTargetPos].piece)
-      LS_ERROR_CHECK(add_valid_move(startPos, doubleStepTargetPos, board, moves, cmt_pawn_double_step));
+    {
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, doubleStepTargetPos, board, param, cmt_pawn_double_step)))
+        return result;
+    }
 
     if (targetPos.y == BoardWidth - 1 || targetPos.y == 0)
     {
@@ -174,14 +201,17 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
       move.isPromotion = true;
 
       move.isPromotedToQueen = true;
-      LS_ERROR_CHECK(add_valid_move(move, board, moves));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+        return result;
 
       move.isPromotedToQueen = false;
-      LS_ERROR_CHECK(add_valid_move(move, board, moves));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+        return result;
     }
     else
     {
-      LS_ERROR_CHECK(add_valid_move(startPos, targetPos, board, moves, cmt_pawn));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPos, board, param, cmt_pawn)))
+        return result;
     }
   }
 
@@ -190,7 +220,8 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     const chess_piece enemyPiece = board[diagonalLeftTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      LS_ERROR_CHECK(add_valid_move(startPos, diagonalLeftTargetPos, board, moves, cmt_pawn_capture));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalLeftTargetPos, board, param, cmt_pawn_capture)))
+        return result;
   }
 
   if (diagonalRightTargetPos.x < BoardWidth && diagonalRightTargetPos.y >= 0 && diagonalRightTargetPos.y < BoardWidth)
@@ -198,7 +229,8 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
     const chess_piece enemyPiece = board[diagonalRightTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      LS_ERROR_CHECK(add_valid_move(startPos, diagonalRightTargetPos, board, moves, cmt_pawn_capture));
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalRightTargetPos, board, param, cmt_pawn_capture)))
+        return result;
   }
 
   // en passant
@@ -213,7 +245,8 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
       const vec2i8 targetPosLeft = vec2i8(targetPos.x - 1, targetPos.y);
 
       if (enemyPiece.piece == cpT_pawn && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn))
-        LS_ERROR_CHECK(add_valid_move(startPos, targetPosLeft, board, moves, cmt_pawn_en_passant));
+        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPosLeft, board, param, cmt_pawn_en_passant)))
+          return result;
     }
 
     if (enemyPosRight.x < BoardWidth)
@@ -222,17 +255,19 @@ __forceinline lsResult get_pawn_moves_from(const chess_board &board, small_list<
       const vec2i8 targetPosRight = vec2i8(targetPos.x + 1, targetPos.y);
 
       if (enemyPiece.piece == cpT_pawn && enemyPiece.lastWasDoubleStep && (enemyPiece.isWhite != board.isWhitesTurn))
-        LS_ERROR_CHECK(add_valid_move(startPos, targetPosRight, board, moves, cmt_pawn_en_passant));
+        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPosRight, board, param, cmt_pawn_en_passant)))
+          return result;
     }
   }
 
-epilogue:
   return result;
 }
 
-__forceinline lsResult add_castle_moves_from(const chess_board &board, small_list<chess_move> &moves, const vec2i8 kingStartPos)
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+inline auto add_castle_moves_from(const chess_board &board, TParam &param, const vec2i8 kingStartPos)
 {
-  lsResult result = lsR_Success;
+  auto result = TResultNop;
 
   lsAssert(kingStartPos.x >= 0 && kingStartPos.y < BoardWidth && board[kingStartPos].piece == cpT_king);
   const chess_piece king = board[kingStartPos];
@@ -265,7 +300,8 @@ __forceinline lsResult add_castle_moves_from(const chess_board &board, small_lis
       }
 
       if (isFree && !isCheck)
-        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosLeft + vec2i8(1, 0), cmt_king_castle))); // all checks from `add_valid_move` have already been checked
+        if (is_cancel(result = TFunc(param, chess_move(kingStartPos, rookPosLeft + vec2i8(1, 0), cmt_king_castle), board))) // all checks from `add_valid_move` have already been checked
+          return result;
     }
 
     if (!board[rookPosRight].hasMoved)
@@ -291,18 +327,19 @@ __forceinline lsResult add_castle_moves_from(const chess_board &board, small_lis
       }
 
       if (isFree && !isCheck)
-        LS_ERROR_CHECK(list_add(&moves, chess_move(kingStartPos, rookPosRight + vec2i8(-1, 0), cmt_king_castle))); // all checks from `add_valid_move` have already been checked
+        if (is_cancel(result = TFunc(param, chess_move(kingStartPos, rookPosRight + vec2i8(-1, 0), cmt_king_castle), board))) // all checks from `add_valid_move` have already been checked
+          return result;
     }
   }
 
-epilogue:
   return result;
 }
 
-template <chess_piece_type piece>
-lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_move> &moves)
+template <chess_piece_type piece, auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+auto get_all_valid_piece_moves(const chess_board &board, TParam &param)
 {
-  lsResult result = lsR_Success;
+  auto result = TResultNop;
 
   for (int8_t y = 0; y < BoardWidth; y++)
   {
@@ -314,33 +351,37 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
       {
         if constexpr (piece == cpT_pawn)
         {
-          LS_ERROR_CHECK(get_pawn_moves_from(board, moves, startPos));
+          if (is_cancel(result = get_pawn_moves_from<TFunc, TResultNop, TParam>(board, param, startPos)))
+            return result;
         }
         else if constexpr (piece == cpT_knight)
         {
           constexpr static vec2i8 TargetDir[] = { vec2i8(-2, -1), vec2i8(-1, -2), vec2i8(1, -2), vec2i8(2, -1), vec2i8(2, 1), vec2i8(1, 2), vec2i8(-1, 2), vec2i8(-2, 1) };
 
           for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
-            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves, cmt_knight));
+            if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, vec2i8(startPos + TargetDir[i]), board, param, cmt_knight)))
+              return result;
         }
         else if constexpr (piece == cpT_bishop || piece == cpT_rook || piece == cpT_queen)
         {
           if constexpr (piece != cpT_rook)
           {
             constexpr chess_move_type moveType = piece == cpT_bishop ? cmt_bishop : cmt_queen_diagonal;
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopLeftRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRightRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomLeftRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRightRelative, moves, moveType));
+            if (is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, TopLeftRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, TopRightRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, BottomLeftRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, BottomRightRelative, param, moveType)))
+              return result;
           }
 
           if constexpr (piece != cpT_bishop)
           {
             constexpr chess_move_type moveType = piece == cpT_rook ? cmt_rook : cmt_queen_straight;
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, LeftRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, TopRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, RightRelative, moves, moveType));
-            LS_ERROR_CHECK(add_repeated_moves(board, startPos, BottomRelative, moves, moveType));
+            if (is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, LeftRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, TopRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, RightRelative, param, moveType)) ||
+              is_cancel(result = add_repeated_moves<TFunc, TResultNop, TParam>(board, startPos, BottomRelative, param, moveType)))
+              return result;
           }
         }
         else if constexpr (piece == cpT_king)
@@ -348,9 +389,11 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
           constexpr vec2i8 TargetDir[] = { TopLeftRelative, TopRelative, TopRightRelative, LeftRelative, RightRelative, BottomLeftRelative, BottomRelative, BottomRightRelative };
 
           for (size_t i = 0; i < LS_ARRAYSIZE(TargetDir); i++)
-            LS_ERROR_CHECK(add_valid_move(startPos, vec2i8(startPos + TargetDir[i]), board, moves, cmt_king));
+            if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, vec2i8(startPos + TargetDir[i]), board, param, cmt_king)))
+              return result;
 
-          LS_ERROR_CHECK(add_castle_moves_from(board, moves, startPos));
+          if (is_cancel(result = add_castle_moves_from<TFunc, TResultNop, TParam>(board, param, startPos)))
+            return result;
         }
         else
         {
@@ -361,9 +404,34 @@ lsResult get_all_valid_piece_moves(const chess_board &board, small_list<chess_mo
     }
   }
 
-epilogue:
   return result;
 }
+
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
+auto get_all_valid_moves(const chess_board &board, TParam &param)
+{
+  auto result = TResultNop;
+
+  if (is_cancel(result = get_all_valid_piece_moves<cpT_pawn, TFunc, TResultNop, TParam>(board, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_king, TFunc, TResultNop, TParam>(board, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_queen, TFunc, TResultNop, TParam>(board, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_rook, TFunc, TResultNop, TParam>(board, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_bishop, TFunc, TResultNop, TParam>(board, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_knight, TFunc, TResultNop, TParam>(board, param)))
+    return result;
+
+  return result;
+}
+
+lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves)
+{
+  list_clear(&moves);
+
+  return get_all_valid_moves<list_add_adapter, lsR_Success, small_list<chess_move>>(board, moves);
+}
+
+//////////////////////////////////////////////////////////////////////////
 
 chess_hash_board chess_hash_board_create(const chess_board &board)
 {
@@ -390,23 +458,6 @@ uint64_t lsHash(const chess_hash_board &board)
   uint64_t ret = _mm_extract_epi64(v0, 0);
   ret ^= board.isWhitesTurn;
   return ret;
-}
-
-lsResult get_all_valid_moves(const chess_board &board, small_list<chess_move> &moves)
-{
-  lsResult result = lsR_Success;
-
-  list_clear(&moves);
-
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_pawn>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_king>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_queen>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_rook>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_bishop>(board, moves));
-  LS_ERROR_CHECK(get_all_valid_piece_moves<cpT_knight>(board, moves));
-
-epilogue:
-  return result;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -592,7 +643,7 @@ struct square_weights
   }
 };
 
-static const square_weights SquareWeights[] = { // https://www.talkchess.com/forum/viewtopic.php?p=553266#p553266
+static const square_weights SquareWeights[] = {
   square_weights({ // none
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -719,6 +770,7 @@ move_with_score minimax_step(const chess_board &board)
   else
   {
     small_list<chess_move> moves;
+    list_clear(&moves);
     LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
     move_with_score ret;
     ret.move = {};
