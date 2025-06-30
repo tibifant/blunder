@@ -22,7 +22,7 @@ template <size_t n>
 void register_testable_files();
 
 #define REGISTER_TESTABLE_FILE(n) template <> void register_testable_files<n>() { if constexpr (n > 0) register_testable_files<n - 1>(); }
-constexpr size_t testable_file_count = 1; // <-- INCREMENT, when new tests are added.
+constexpr size_t testable_file_count = 0; // <-- INCREMENT, when new tests are added.
 
 template <typename T>
 inline void testable_print_value_of_type(const T &v)

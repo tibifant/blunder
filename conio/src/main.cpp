@@ -1,18 +1,28 @@
 #include "core.h"
 #include "blunder.h"
 #include "io.h"
-
-#include <conio.h>
+#include "testable.h"
 
 #include <optional>
 
 //////////////////////////////////////////////////////////////////////////
 
-void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input);
+enum ai_type
+{
+  ait_player,
+  ait_random,
+  ait_minimax,
+  ait_alphabeta,
+  ait_complex,
+};
+
+template <bool IsWhite>
+void perform_move(chess_board &board, list<chess_move> &moves, const ai_type from_input);
+
 void print_board(const chess_board &board);
 char read_char();
 lsResult read_start_position_from_file(const char *filename, chess_board &board);
-chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves);
+chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -21,20 +31,40 @@ int32_t main(const int32_t argc, char **pArgv)
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
 
+  if (!cpu_info::avx2Supported || !cpu_info::aesNiSupported)
+  {
+    print_error_line("CPU '", cpu_info::GetCpuName(), "' is not supported (AVX2, AES/NI required)");
+    return EXIT_FAILURE;
+  }
+
+  run_testables();
+
   chess_board board = chess_board::get_starting_point();
-  bool white_from_input = true;
-  bool black_from_input = false;
+  ai_type white_player = ait_player;
+  ai_type black_player = ait_complex;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {
     if (lsStringEquals("--play-white", pArgv[i]))
-      white_from_input = true;
+      white_player = ait_player;
     else if (lsStringEquals("--play-black", pArgv[i]))
-      black_from_input = true;
-    else if (lsStringEquals("--ai-white", pArgv[i]))
-      white_from_input = false;
-    else if (lsStringEquals("--ai-black", pArgv[i]))
-      black_from_input = false;
+      black_player = ait_player;
+    else if (lsStringEquals("--random-white", pArgv[i]))
+      white_player = ait_random;
+    else if (lsStringEquals("--random-black", pArgv[i]))
+      black_player = ait_random;
+    else if (lsStringEquals("--minimax-white", pArgv[i]))
+      white_player = ait_minimax;
+    else if (lsStringEquals("--minimax-black", pArgv[i]))
+      black_player = ait_minimax;
+    else if (lsStringEquals("--alphabeta-white", pArgv[i]))
+      white_player = ait_alphabeta;
+    else if (lsStringEquals("--alphabeta-black", pArgv[i]))
+      black_player = ait_alphabeta;
+    else if (lsStringEquals("--complex-white", pArgv[i]))
+      white_player = ait_complex;
+    else if (lsStringEquals("--complex-black", pArgv[i]))
+      black_player = ait_complex;
     else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
       lsFail();
   }
@@ -67,17 +97,17 @@ int32_t main(const int32_t argc, char **pArgv)
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   print_board(board);
 
   while (true)
   {
-    perform_move(board, moves, white_from_input);
+    perform_move<true>(board, moves, white_player);
 
     if (board.hasWhiteWon)
       break;
 
-    perform_move(board, moves, black_from_input);
+    perform_move<false>(board, moves, black_player);
 
     if (board.hasBlackWon)
       break;
@@ -90,7 +120,12 @@ int32_t main(const int32_t argc, char **pArgv)
 
 //////////////////////////////////////////////////////////////////////////
 
-chess_move get_move_from_input(const chess_board &board, small_list<chess_move> &moves)
+void print_played_move(const chess_move move)
+{
+  print("Played Move: ", (char)(move.startX + 'a'), move.startY + 1, (char)(move.targetX + 'a'), move.targetY + 1, "\n\n");
+}
+
+chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves)
 {
   while (true)
   {
@@ -173,19 +208,21 @@ chess_move get_move_from_input(const chess_board &board, small_list<chess_move> 
   }
 }
 
-void perform_move(chess_board &board, small_list<chess_move> &moves, const bool from_input)
+template <bool IsWhite>
+void perform_move(chess_board &board, list<chess_move> &moves, const ai_type ai)
 {
-  if (from_input)
+  switch (ai)
+  {
+  default:
+  case ait_player:
   {
     const chess_move move = get_move_from_input(board, moves);
-
-    // Perform move.
     board = perform_move(board, move);
+    break;
   }
-  else // AI move.
-  {
-    print("Calculating AI Move... (lol)\n");
 
+  case ait_random:
+  {
     if (LS_FAILED(get_all_valid_moves(board, moves)))
     {
       print_error_line("Failed to retrieve moves. Aborting.");
@@ -195,6 +232,55 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const bool 
     // Perform random move.
     const size_t moveIdx = lsGetRand() % moves.count;
     board = perform_move(board, moves[moveIdx]);
+    print_played_move(moves[moveIdx]);
+
+    break;
+  }
+
+  case ait_minimax:
+  {
+    chess_move move;
+
+    if constexpr (IsWhite)
+      move = get_minimax_move_white(board);
+    else
+      move = get_minimax_move_black(board);
+
+    board = perform_move(board, move);
+    print_played_move(move);
+
+    break;
+  }
+
+  case ait_alphabeta:
+  {
+    chess_move move;
+
+    if constexpr (IsWhite)
+      move = get_alpha_beta_move_white(board);
+    else
+      move = get_alpha_beta_move_black(board);
+
+    board = perform_move(board, move);
+    print_played_move(move);
+
+    break;
+  }
+
+  case ait_complex:
+  {
+    chess_move move;
+
+    if constexpr (IsWhite)
+      move = get_complex_move_white(board);
+    else
+      move = get_complex_move_black(board);
+
+    board = perform_move(board, move);
+    print_played_move(move);
+
+    break;
+  }
   }
 
   print_board(board);
@@ -202,56 +288,9 @@ void perform_move(chess_board &board, small_list<chess_move> &moves, const bool 
 
 //////////////////////////////////////////////////////////////////////////
 
-void print_x_coords()
+bool is_upper_case(const char c)
 {
-  print("   ");
-
-  for (int8_t x = 0; x < 8; x++)
-    print(' ', (char)('a' + x), ' ');
-
-  print('\n');
-}
-
-void print_board(const chess_board &board)
-{
-  char pieces[] = " KQRBNP";
-  static_assert(LS_ARRAYSIZE(pieces) == _chess_piece_type_count + 1 /* \0 */);
-
-  print_x_coords();
-
-  for (int8_t y = 7; y >= 0; y--)
-  {
-    print(' ', (char)('1' + y), ' ');
-
-    for (int8_t x = 0; x < 8; x++)
-    {
-      const chess_piece piece = board[vec2i8(x, y)];
-      lsSetConsoleColor(piece.isWhite ? lsCC_White : lsCC_Black, ((x ^ y) & 1) ? lsCC_BrightCyan : lsCC_DarkBlue);
-      lsAssert(piece.piece < _chess_piece_type_count);
-      print(' ', pieces[piece.piece], ' ');
-    }
-
-    lsResetConsoleColor();
-
-    print(' ', (char)('1' + y), '\n');
-  }
-
-  print_x_coords();
-  print("\n");
-}
-
-char read_char()
-{
-  const char c = (char)_getch();
-  print(c);
-  return c;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-bool is_lower_case(const char c)
-{
-  return 'a' <= c && c <= 'z';
+  return 'A' <= c && c <= 'Z';
 }
 
 lsResult read_start_position_from_file(const char *filename, chess_board &board)
@@ -283,37 +322,37 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
       case 'K':
       case 'k':
         piece = cpT_king;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'Q':
       case 'q':
         piece = cpT_queen;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'N':
       case 'n':
         piece = cpT_knight;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'B':
       case 'b':
         piece = cpT_bishop;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'R':
       case 'r':
         piece = cpT_rook;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case 'P':
       case 'p':
         piece = cpT_pawn;
-        isWhite = is_lower_case(fileContents[i]);
+        isWhite = is_upper_case(fileContents[i]);
         break;
 
       case '\r':
@@ -334,6 +373,13 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
       board[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
       currentPos.x++;
     }
+
+    const chess_board startBoard = chess_board::get_starting_point();
+
+    for (size_t i = 0; i < LS_ARRAYSIZE(startBoard.board); i++)
+      if (board.board[i].piece != startBoard.board[i].piece)
+        board.board[i].hasMoved = true;
+
   }
 
 epilogue:

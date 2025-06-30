@@ -74,6 +74,12 @@ int32_t main(const int32_t argc, const char **pArgv)
   sformatState_ResetCulture();
   cpu_info::DetectCpuFeatures();
 
+  if (!cpu_info::avx2Supported || !cpu_info::aesNiSupported)
+  {
+    print_error_line("CPU '", cpu_info::GetCpuName(), "' is not supported (AVX2, AES/NI required)");
+    return EXIT_FAILURE;
+  }
+
   // Set Working Directory.
   do
   {
@@ -159,7 +165,7 @@ crow::response handle_get_valid_moves(const crow::request &req)
 
   crow::json::wvalue ret;
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
@@ -198,7 +204,7 @@ crow::response handle_move(const crow::request &req)
   if (originX < 0 || originX >= BoardWidth || originY < 0 || originY >= BoardWidth || destX < 0 || destX >= BoardWidth || destY < 0 || destY >= BoardWidth)
     return crow::response(crow::status::BAD_REQUEST);
 
-  small_list<chess_move> moves;
+  list<chess_move> moves;
   if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
     return crow::response(crow::status::INTERNAL_SERVER_ERROR);
 
@@ -229,11 +235,8 @@ crow::response handle_move(const crow::request &req)
 
   // AI move.
   {
-    if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
-      return crow::response(crow::status::INTERNAL_SERVER_ERROR);
-
-    const size_t moveIdx = lsGetRand() % moves.count;
-    _CurrentBoard = perform_move(_CurrentBoard, moves[moveIdx]);
+    const chess_move move = get_alpha_beta_move_black(_CurrentBoard);
+    _CurrentBoard = perform_move(_CurrentBoard, move);
   }
 
   return crow::response(crow::status::OK);
