@@ -8,6 +8,7 @@ enum chess_piece_type : uint8_t
 {
   cpT_none, // `none` has to always be 0 for easy checks.
 
+  // order of the types is in decreasing piece value
   cpT_king,
   cpT_queen,
   cpT_rook,

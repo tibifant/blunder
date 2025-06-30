@@ -162,18 +162,26 @@ lsResult add_capturing_move(piece_move_map<HasCptNone> &map, const chess_move &m
   }
 }
 
-template <bool HasCptNone>
-lsResult add_sorted_moves(list<chess_move> &sortedMoves, piece_move_map<HasCptNone> &capturingMap)
+template <bool HasCptNoneIn, bool HasCptNoneOut>
+lsResult add_sorted_moves(list<chess_move> &sortedMoves, const piece_move_map<HasCptNoneIn> &capturingMap)
 {
   lsResult result = lsR_Success;
 
   list_clear(sortedMoves);
 
-  piece_move_map<HasCptNone> capturedMap;
+  piece_move_map<HasCptNoneOut> capturedMap;
 
+  for (size_t i = 0; i < LS_ARRAYSIZE(capturedMap.map))
+    for (const capture_info_chess_move m : capturedMap.map[i])
+      LS_ERROR_CHECK(list_add(capturedMap[m.capturedPiece - HasCptNoneOut], m));
 
-  for (const capture_info_chess_move &m : capturingMap[cpt_pawn])
-    LS_ERROR_CHECK(list_add(capturedMap[m.capturedPiece - HasCptNone], m));
+  for (size_t i = 1; i < LS_ARRAYSIZE(capturedMap.map)) // relies on the chess_pice_types being in the right order
+    for (const capture_info_chess_move m : capturingMap.map[i])
+      LS_ERROR_CHECK(list_add(sortedMoves, m));
+
+  if constexpr (HasCptNoneOut)
+    for (const capture_info_chess_move m : capturingMap.map[cpT_none])
+      LS_ERROR_CHECK(list_add(sortedMoves, m));
 }
 
 //////////////////////////////////////////////////////////////////////////
