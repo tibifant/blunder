@@ -110,7 +110,8 @@ template <typename T>
 using result_of_t = result_of<T>::type;
 
 template <auto TFunc, auto TResultNop, typename TParam>
-concept TFuncIsValid = requires (const decltype(TResultNop) ret) {
+concept TFuncIsValid = requires (const decltype(TResultNop) ret, TParam & param, const chess_move & move, const chess_board & board) {
+  { TFunc(param, move, board) } -> std::same_as<decltype(TResultNop)>;
   { is_cancel(ret) } -> std::same_as<bool>;
 };
 
@@ -462,15 +463,10 @@ uint64_t lsHash(const chess_hash_board &board)
 
 //////////////////////////////////////////////////////////////////////////
 
-__forceinline void assert_move_type(const chess_move move, const chess_move_type type, const chess_board &board)
+__forceinline void assert_move_type(const chess_move move, const chess_move_type type, [[maybe_unused]] const chess_board &board)
 {
 #ifdef _DEBUG
-  //lsAssert(move.moveType == type);
-  if (move.moveType != type)
-  {
-    print_board(board);
-    lsAssert(false);
-  }
+  lsAssert(move.moveType == type);
 #else
   (void)board;
   (void)move;
@@ -744,9 +740,6 @@ int64_t evaluate_chess_board(const chess_board &board)
 
     ret += signedScoreWithZero; // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalNegate
   }
-
-  //if (!board.isWhitesTurn)
-    //ret = -ret;
 
   return ret;
 }
