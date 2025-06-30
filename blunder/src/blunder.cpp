@@ -972,7 +972,7 @@ chess_move get_minimax_move_black(const chess_board &board)
 template <bool IsWhite>
 chess_move get_alpha_beta_move(const chess_board &board)
 {
-  constexpr size_t Depth = 6;
+  constexpr size_t Depth = 5;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();

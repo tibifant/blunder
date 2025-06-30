@@ -235,11 +235,8 @@ crow::response handle_move(const crow::request &req)
 
   // AI move.
   {
-    if (LS_FAILED(get_all_valid_moves(_CurrentBoard, moves)))
-      return crow::response(crow::status::INTERNAL_SERVER_ERROR);
-
-    const size_t moveIdx = lsGetRand() % moves.count;
-    _CurrentBoard = perform_move(_CurrentBoard, moves[moveIdx]);
+    const chess_move move = get_alpha_beta_move_black(_CurrentBoard);
+    _CurrentBoard = perform_move(_CurrentBoard, move);
   }
 
   return crow::response(crow::status::OK);
