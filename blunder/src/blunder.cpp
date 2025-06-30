@@ -129,6 +129,55 @@ __forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_mov
 
 //////////////////////////////////////////////////////////////////////////
 
+struct capture_info_chess_move : chess_move
+{
+  chess_piece_type capturingPiece;
+  chess_piece_type capturedPiece;
+
+  capture_info_chess_move(const chess_move move, const chess_piece_type capturingPiece, const chess_piece_type capturedPiece) : capturingPiece(capturingPiece), capturedPiece(capturedPiece), chess_move(move) {}
+};
+
+template <bool HasCptNone>
+struct piece_move_map
+{
+  list<chess_piece_type> map[_chess_piece_type_count - HasCptNone];
+};
+
+template <bool HasCptNone>
+lsResult add_capturing_move(piece_move_map<HasCptNone> &map, const chess_move &move, const chess_board &board)
+{
+  const chess_piece_type capturingPiece = board[vec2i8(move.startX, move.startY)].piece;
+  const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
+
+  if constexpr (HasCptNone)
+  {
+    if (capturedPiece)
+      return list_add(map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
+    else
+      return lsR_Success;
+  }
+  else
+  {
+    return list_add(map[capturingPiece], capture_info_chess_move(move, capturingPiece, capturedPiece));
+  }
+}
+
+template <bool HasCptNone>
+lsResult add_sorted_moves(list<chess_move> &sortedMoves, piece_move_map<HasCptNone> &capturingMap)
+{
+  lsResult result = lsR_Success;
+
+  list_clear(sortedMoves);
+
+  piece_move_map<HasCptNone> capturedMap;
+
+
+  for (const capture_info_chess_move &m : capturingMap[cpt_pawn])
+    LS_ERROR_CHECK(list_add(capturedMap[m.capturedPiece - HasCptNone], m));
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
 auto add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, TParam &param, [[maybe_unused]] const chess_move_type type)
