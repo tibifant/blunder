@@ -41,7 +41,7 @@ int32_t main(const int32_t argc, char **pArgv)
 
   chess_board board = chess_board::get_starting_point();
   ai_type white_player = ait_player;
-  ai_type black_player = ait_complex;
+  ai_type black_player = ait_alphabeta;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {

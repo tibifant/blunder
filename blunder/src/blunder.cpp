@@ -117,75 +117,6 @@ concept TFuncIsValid = requires (const decltype(TResultNop) ret, TParam & param,
 
 //////////////////////////////////////////////////////////////////////////
 
-__forceinline bool is_cancel(const lsResult result)
-{
-  return LS_FAILED(result);
-}
-
-__forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_move &move, const chess_board &)
-{
-  return list_add(&moves, move);
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-struct capture_info_chess_move : chess_move
-{
-  chess_piece_type capturingPiece;
-  chess_piece_type capturedPiece;
-
-  capture_info_chess_move(const chess_move move, const chess_piece_type capturingPiece, const chess_piece_type capturedPiece) : capturingPiece(capturingPiece), capturedPiece(capturedPiece), chess_move(move) {}
-};
-
-template <bool HasCptNone>
-struct piece_move_map
-{
-  list<chess_piece_type> map[_chess_piece_type_count - HasCptNone];
-};
-
-template <bool HasCptNone>
-lsResult add_capturing_move(piece_move_map<HasCptNone> &map, const chess_move &move, const chess_board &board)
-{
-  const chess_piece_type capturingPiece = board[vec2i8(move.startX, move.startY)].piece;
-  const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
-
-  if constexpr (HasCptNone)
-  {
-    if (capturedPiece)
-      return list_add(map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
-    else
-      return lsR_Success;
-  }
-  else
-  {
-    return list_add(map[capturingPiece], capture_info_chess_move(move, capturingPiece, capturedPiece));
-  }
-}
-
-template <bool HasCptNoneIn, bool HasCptNoneOut>
-lsResult add_sorted_moves(list<chess_move> &sortedMoves, const piece_move_map<HasCptNoneIn> &capturingMap)
-{
-  lsResult result = lsR_Success;
-
-  list_clear(sortedMoves);
-
-  piece_move_map<HasCptNoneOut> capturedMap;
-
-  for (size_t i = 0; i < LS_ARRAYSIZE(capturedMap.map))
-    for (const capture_info_chess_move m : capturedMap.map[i])
-      LS_ERROR_CHECK(list_add(capturedMap[m.capturedPiece - HasCptNoneOut], m));
-
-  for (size_t i = 1; i < LS_ARRAYSIZE(capturedMap.map)) // relies on the chess_pice_types being in the right order
-    for (const capture_info_chess_move m : capturingMap.map[i])
-      LS_ERROR_CHECK(list_add(sortedMoves, m));
-
-  if constexpr (HasCptNoneOut)
-    for (const capture_info_chess_move m : capturingMap.map[cpT_none])
-      LS_ERROR_CHECK(list_add(sortedMoves, m));
-}
-
-//////////////////////////////////////////////////////////////////////////
-
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
 auto add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, TParam &param, [[maybe_unused]] const chess_move_type type)
@@ -482,11 +413,106 @@ auto get_all_valid_moves(const chess_board &board, TParam &param)
   return result;
 }
 
+//////////////////////////////////////////////////////////////////////////
+
+__forceinline bool is_cancel(const lsResult result)
+{
+  return LS_FAILED(result);
+}
+
+__forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_move &move, const chess_board &)
+{
+  return list_add(&moves, move);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves)
 {
   list_clear(&moves);
 
   return get_all_valid_moves<list_add_adapter, lsR_Success, list<chess_move>>(board, moves);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+struct capture_info_chess_move : chess_move
+{
+  chess_piece_type capturingPiece;
+  chess_piece_type capturedPiece;
+
+  capture_info_chess_move(const chess_move move, const chess_piece_type capturingPiece, const chess_piece_type capturedPiece) : capturingPiece(capturingPiece), capturedPiece(capturedPiece), chess_move(move) {}
+};
+
+template <bool HasCptNone>
+struct piece_move_map
+{
+  list<capture_info_chess_move> map[_chess_piece_type_count - (uint8_t)!HasCptNone];
+};
+
+template <bool IsQuiescence>
+lsResult add_capturing_move(piece_move_map<!IsQuiescence> &map, const chess_move &move, const chess_board &board)
+{
+  const chess_piece_type capturingPiece = board[vec2i8(move.startX, move.startY)].piece;
+  const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
+
+  if constexpr (IsQuiescence)
+  {
+    if (!capturedPiece)
+      return lsR_Success;
+
+    lsAssert(capturingPiece - 1 <= LS_ARRAYSIZE(map.map));
+    return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
+  }
+  else
+  {
+    lsAssert(capturingPiece <= LS_ARRAYSIZE(map.map));
+    return list_add(map.map[capturingPiece], capture_info_chess_move(move, capturingPiece, capturedPiece));
+  }
+}
+
+template <bool HasCptNoneIn, bool HasCptNoneTmp>
+lsResult retrieve_ordered_moves(list<chess_move> &out, const piece_move_map<HasCptNoneIn> &in, piece_move_map<HasCptNoneTmp> &tmp)
+{
+  lsResult result = lsR_Success;
+
+  list_clear(&out);
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(tmp.map); i++)
+    list_clear(&tmp.map[i]);
+
+  for (int64_t i = LS_ARRAYSIZE(in.map) - 1; i >= 0; i--)
+    for (const capture_info_chess_move m : in.map[i])
+      LS_ERROR_CHECK(list_add(tmp.map[m.capturedPiece - !HasCptNoneTmp], m));
+
+  // step 1: move capturing pieces
+  for (size_t i = cpT_none + 1; i < LS_ARRAYSIZE(tmp.map); i++) // relies on the chess_pice_types being in the right order
+    for (const capture_info_chess_move m : tmp.map[i - !HasCptNoneTmp])
+      LS_ERROR_CHECK(list_add<chess_move>(out, m));
+
+  // step 2: if there could be non-capturing moves: put them last.
+  if constexpr (HasCptNoneTmp)
+    for (const capture_info_chess_move m : tmp.map[cpT_none])
+      LS_ERROR_CHECK(list_add<chess_move>(out, m));
+
+epilogue:
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+lsResult get_valid_quiescence_moves(list<chess_move> &out, const chess_board &board, piece_move_map<false> &in, piece_move_map<false> &tmp)
+{
+  lsResult result = lsR_Success;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(in.map); i++)
+    list_clear(&in.map[i]);
+
+  LS_ERROR_CHECK((get_all_valid_moves<add_capturing_move<true>, lsR_Success, piece_move_map<false>>(board, in)));
+  LS_ERROR_CHECK(retrieve_ordered_moves(out, in, tmp));
+
+epilogue:
+  return result;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -771,9 +797,10 @@ static const square_weights SquareWeights[] = {
 
 static_assert(LS_ARRAYSIZE(SquareWeights) == _chess_piece_type_count);
 
+constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
+
 int64_t evaluate_chess_board(const chess_board &board)
 {
-  constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
 
   int64_t ret = 0;
 
@@ -865,10 +892,13 @@ constexpr bool UseCache = false;
 template <size_t MaxDepth>
 struct alpha_beta_minimax_cache
 {
+  static constexpr size_t MaxQuiescenceDepth = 20;
+
   list<chess_move> movesAtLevel[MaxDepth];
-  chess_move currentMove[MaxDepth];
+  chess_move currentMove[MaxDepth + MaxQuiescenceDepth];
 #ifdef _DEBUG
   size_t nodesVisited = 0;
+  size_t quiescenceNodesVisited = 0;
   size_t duplicatesRejected = 0;
   chess_move highestMove[MaxDepth];
   chess_move lowestMove[MaxDepth];
@@ -884,6 +914,9 @@ struct alpha_beta_minimax_cache
   constexpr static size_t hashMask = hashValues - 1;
 
   chess_hash_board *pCache = nullptr;
+
+  piece_move_map<false> pieceMoves[2];
+  list<chess_move> quiescenceMovesAtLevel[MaxQuiescenceDepth];
 
   alpha_beta_minimax_cache()
   {
@@ -930,6 +963,68 @@ void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, c
   cache.pCache[hash] = std::move(board);
 }
 
+template <bool FindMin, size_t CacheDepth, size_t MaxDepth = alpha_beta_minimax_cache<CacheDepth>::MaxQuiescenceDepth>
+int64_t quiescence_alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<CacheDepth> &cache, const size_t depthIndex = 0)
+{
+  if (board.hasBlackWon)
+    return -PieceScores[cpT_king];
+  else if (board.hasWhiteWon)
+    return PieceScores[cpT_king];
+  else if (depthIndex == MaxDepth)
+    return evaluate_chess_board(board);
+
+  list<chess_move> &moves = cache.quiescenceMovesAtLevel[depthIndex];
+  LS_DEBUG_ERROR_ASSERT(get_valid_quiescence_moves(moves, board, cache.pieceMoves[0], cache.pieceMoves[1]));
+
+  if (!moves.count)
+    return evaluate_chess_board(board);
+
+  int64_t score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
+
+  for (const chess_move move : moves)
+  {
+#ifdef _DEBUG
+    cache.quiescenceNodesVisited++;
+#endif
+
+    const chess_board after = perform_move(board, move);
+    cache.currentMove[CacheDepth + depthIndex] = move;
+
+    const int64_t moveScore = quiescence_alpha_beta_step<!FindMin, CacheDepth, MaxDepth>(after, alpha, beta, cache, depthIndex + 1);
+
+    if constexpr (FindMin)
+    {
+      if (moveScore < score)
+      {
+        score = moveScore;
+
+        if (score < beta)
+          beta = score;
+
+        if (score <= alpha)
+          break;
+      }
+    }
+    else
+    {
+      if (moveScore > score)
+      {
+        score = moveScore;
+
+        if (score > alpha)
+          alpha = score;
+
+        if (score >= beta)
+          break;
+      }
+    }
+  }
+
+  return score;
+}
+
+constexpr bool UseQuiescenceSearch = true;
+
 template <bool FindMin, size_t MaxDepth, size_t DepthIndex = 0>
 moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<MaxDepth> &cache)
 {
@@ -937,7 +1032,14 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
 
   if constexpr (DepthIndex == MaxDepth)
   {
-    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, evaluate_chess_board(board));
+    int64_t score;
+
+    if constexpr (UseQuiescenceSearch)
+      score = quiescence_alpha_beta_step<FindMin>(board, alpha, beta, cache);
+    else
+      score = evaluate_chess_board(board);
+
+    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, score);
 
 #ifdef _DEBUG
     if (ret.score > cache.highestScore)
@@ -1029,7 +1131,7 @@ chess_move get_minimax_move_black(const chess_board &board)
 template <bool IsWhite>
 chess_move get_alpha_beta_move(const chess_board &board)
 {
-  constexpr size_t Depth = 5;
+  constexpr size_t Depth = 4;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
@@ -1043,7 +1145,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
 
-  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
+  print(FU(Group)(cache.nodesVisited), " + ", FU(Group)(cache.quiescenceNodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)((cache.nodesVisited + cache.quiescenceNodesVisited) / ((after - before) * 1e-9f)), "/s)\n");
 
   print("\nBest Moves (rating: ", moveInfo.score, "):\n");
 
