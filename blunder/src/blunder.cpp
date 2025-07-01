@@ -166,6 +166,35 @@ inline auto add_repeated_moves(const chess_board &board, const vec2i8 startPos, 
 
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
+inline auto add_potential_promotion(chess_move move, const chess_board &board, TParam &param)
+{
+  auto result = TResultNop;
+
+  if (move.targetY == BoardWidth - 1 || move.targetY == 0)
+  {
+    move.moveType = cmt_pawn_promotion;
+    move.isPromotion = true;
+    move.isPromotedToQueen = true;
+
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+
+    move.isPromotedToQueen = false;
+
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+  }
+  else
+  {
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+  }
+
+  return result;
+}
+
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
 inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const vec2i8 startPos)
 {
   auto result = TResultNop;
@@ -184,27 +213,10 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
         return result;
     }
 
-    if (targetPos.y == BoardWidth - 1 || targetPos.y == 0)
-    {
-      chess_move pq = chess_move(startPos, targetPos, cmt_pawn_promotion);
-      pq.isPromotion = true;
-      pq.isPromotedToQueen = true;
+    chess_move move = chess_move(startPos, targetPos, cmt_pawn);
 
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
-        return result;
-
-      chess_move pn = chess_move(startPos, targetPos, cmt_pawn_promotion);
-      pn.isPromotion = true;
-      pn.isPromotedToQueen = false;
-
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
-        return result;
-    }
-    else
-    {
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPos, board, param, cmt_pawn)))
-        return result;
-    }
+    if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
   }
 
   if (diagonalLeftTargetPos.x >= 0 && diagonalLeftTargetPos.y >= 0 && diagonalLeftTargetPos.y < BoardWidth)
@@ -213,27 +225,10 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
     {
-      if (diagonalLeftTargetPos.y == BoardWidth || diagonalLeftTargetPos.y == 0)
-      {
-        chess_move pq = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
-        pq.isPromotion = true;
-        pq.isPromotedToQueen = true;
+      chess_move move = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture);
 
-        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
-          return result;
-
-        chess_move pn = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
-        pn.isPromotion = true;
-        pn.isPromotedToQueen = false;
-
-        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
-          return result;
-      }
-      else
-      {
-        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalLeftTargetPos, board, param, cmt_pawn_capture)))
-          return result;
-      }
+      if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
+        return result;
     }
   }
 
@@ -243,30 +238,10 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
     {
-      if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      {
-        if (diagonalRightTargetPos.y == BoardWidth || diagonalRightTargetPos.y == 0)
-        {
-          chess_move pq = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
-          pq.isPromotion = true;
-          pq.isPromotedToQueen = true;
+      chess_move move = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture);
 
-          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
-            return result;
-
-          chess_move pn = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
-          pn.isPromotion = true;
-          pn.isPromotedToQueen = false;
-
-          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
-            return result;
-        }
-        else
-        {
-          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalRightTargetPos, board, param, cmt_pawn_capture)))
-            return result;
-        }
-      }
+      if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
+        return result;
     }
   }
 
@@ -505,18 +480,11 @@ lsResult add_capturing_move(piece_move_map<false> &map, const chess_move &move, 
   const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
 
   if constexpr (IsQuiescence)
-  {
     if (!capturedPiece)
       return lsR_Success;
 
-    lsAssert(capturingPiece - 1 <= LS_ARRAYSIZE(map.map));
-    return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
-  }
-  else
-  {
-    lsAssert(capturingPiece <= LS_ARRAYSIZE(map.map));
-    return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
-  }
+  lsAssert(capturingPiece - 1 <= LS_ARRAYSIZE(map.map));
+  return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
 }
 
 template <bool HasCptNoneIn, bool HasCptNoneTmp>
@@ -654,6 +622,16 @@ chess_board perform_move(const chess_board &board, const chess_move move)
       assert_move_type(move, cmt_pawn_double_step, board);
       origin.lastWasDoubleStep = true;
     }
+    else if (move.isPromotion)
+    {
+      assert_move_type(move, cmt_pawn_promotion, board);
+      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
+
+      if (move.isPromotedToQueen)
+        origin.piece = cpT_queen;
+      else
+        origin.piece = cpT_knight;
+    }
     else if (move.startX != move.targetX)
     {
       if (target.piece)
@@ -668,16 +646,6 @@ chess_board perform_move(const chess_board &board, const chess_move move)
         lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
         ret[enemyPos].piece = cpT_none;
       }
-    }
-    else if (move.isPromotion)
-    {
-      assert_move_type(move, cmt_pawn_promotion, board);
-      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
-
-      if (move.isPromotedToQueen)
-        origin.piece = cpT_queen;
-      else
-        origin.piece = cpT_knight;
     }
     else
     {
@@ -1124,8 +1092,6 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
   else
   {
     list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
-    list_clear(&moves);
-
     LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNoncapture));
     moves_with_score<MaxDepth> ret;
     ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
