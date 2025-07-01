@@ -172,7 +172,9 @@ inline auto add_potential_promotion(chess_move move, const chess_board &board, T
 
   if (move.targetY == BoardWidth - 1 || move.targetY == 0)
   {
+#ifdef _DEBUG
     move.moveType = cmt_pawn_promotion;
+#endif
     move.isPromotion = true;
     move.isPromotedToQueen = true;
 
