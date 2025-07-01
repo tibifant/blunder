@@ -186,15 +186,18 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
 
     if (targetPos.y == BoardWidth - 1 || targetPos.y == 0)
     {
-      chess_move move = chess_move(startPos, targetPos, cmt_pawn_promotion);
-      move.isPromotion = true;
+      chess_move pq = chess_move(startPos, targetPos, cmt_pawn_promotion);
+      pq.isPromotion = true;
+      pq.isPromotedToQueen = true;
 
-      move.isPromotedToQueen = true;
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
         return result;
 
-      move.isPromotedToQueen = false;
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      chess_move pn = chess_move(startPos, targetPos, cmt_pawn_promotion);
+      pn.isPromotion = true;
+      pn.isPromotedToQueen = false;
+
+      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
         return result;
     }
     else
@@ -209,8 +212,29 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
     const chess_piece enemyPiece = board[diagonalLeftTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalLeftTargetPos, board, param, cmt_pawn_capture)))
-        return result;
+    {
+      if (diagonalLeftTargetPos.y == BoardWidth || diagonalLeftTargetPos.y == 0)
+      {
+        chess_move pq = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
+        pq.isPromotion = true;
+        pq.isPromotedToQueen = true;
+
+        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
+          return result;
+
+        chess_move pn = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
+        pn.isPromotion = true;
+        pn.isPromotedToQueen = false;
+
+        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
+          return result;
+      }
+      else
+      {
+        if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalLeftTargetPos, board, param, cmt_pawn_capture)))
+          return result;
+      }
+    }
   }
 
   if (diagonalRightTargetPos.x < BoardWidth && diagonalRightTargetPos.y >= 0 && diagonalRightTargetPos.y < BoardWidth)
@@ -218,8 +242,32 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
     const chess_piece enemyPiece = board[diagonalRightTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalRightTargetPos, board, param, cmt_pawn_capture)))
-        return result;
+    {
+      if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
+      {
+        if (diagonalRightTargetPos.y == BoardWidth || diagonalRightTargetPos.y == 0)
+        {
+          chess_move pq = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
+          pq.isPromotion = true;
+          pq.isPromotedToQueen = true;
+
+          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pq, board, param)))
+            return result;
+
+          chess_move pn = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture); // TODO: this is capture and promotion...
+          pn.isPromotion = true;
+          pn.isPromotedToQueen = false;
+
+          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(pn, board, param)))
+            return result;
+        }
+        else
+        {
+          if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalRightTargetPos, board, param, cmt_pawn_capture)))
+            return result;
+        }
+      }
+    }
   }
 
   // en passant
