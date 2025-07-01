@@ -451,7 +451,7 @@ struct piece_move_map
 };
 
 template <bool IsQuiescence>
-lsResult add_capturing_move(piece_move_map<!IsQuiescence> &map, const chess_move &move, const chess_board &board)
+lsResult add_capturing_move(piece_move_map<false> &map, const chess_move &move, const chess_board &board)
 {
   const chess_piece_type capturingPiece = board[vec2i8(move.startX, move.startY)].piece;
   const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
@@ -467,7 +467,7 @@ lsResult add_capturing_move(piece_move_map<!IsQuiescence> &map, const chess_move
   else
   {
     lsAssert(capturingPiece <= LS_ARRAYSIZE(map.map));
-    return list_add(map.map[capturingPiece], capture_info_chess_move(move, capturingPiece, capturedPiece));
+    return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
   }
 }
 
@@ -509,6 +509,20 @@ lsResult get_valid_quiescence_moves(list<chess_move> &out, const chess_board &bo
     list_clear(&in.map[i]);
 
   LS_ERROR_CHECK((get_all_valid_moves<add_capturing_move<true>, lsR_Success, piece_move_map<false>>(board, in)));
+  LS_ERROR_CHECK(retrieve_ordered_moves(out, in, tmp));
+
+epilogue:
+  return result;
+}
+
+lsResult get_all_valid_ordered_moves(list<chess_move> &out, const chess_board &board, piece_move_map<false> &in, piece_move_map<true> &tmp)
+{
+  lsResult result = lsR_Success;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(in.map); i++)
+    list_clear(&in.map[i]);
+
+  LS_ERROR_CHECK((get_all_valid_moves<add_capturing_move<false>, lsR_Success, piece_move_map<false>>(board, in)));
   LS_ERROR_CHECK(retrieve_ordered_moves(out, in, tmp));
 
 epilogue:
@@ -915,6 +929,8 @@ struct alpha_beta_minimax_cache
 
   chess_hash_board *pCache = nullptr;
 
+  piece_move_map<true> pieceMovesWithNoncapture;
+
   piece_move_map<false> pieceMoves[2];
   list<chess_move> quiescenceMovesAtLevel[MaxQuiescenceDepth];
 
@@ -1062,7 +1078,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
     list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
     list_clear(&moves);
 
-    LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
+    LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNoncapture));
     moves_with_score<MaxDepth> ret;
     ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
 
