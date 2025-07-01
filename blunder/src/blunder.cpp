@@ -945,10 +945,11 @@ struct alpha_beta_minimax_cache
 
   chess_hash_board *pCache = nullptr;
 
-  piece_move_map<true> pieceMovesWithNoncapture;
-
+  piece_move_map<true> pieceMovesWithNonCapture;
   piece_move_map<false> pieceMoves[2];
   list<chess_move> quiescenceMovesAtLevel[MaxQuiescenceDepth];
+
+  int64_t ticksPerLayer[MaxDepth + 1] = {};
 
   alpha_beta_minimax_cache()
   {
@@ -1065,6 +1066,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
   if constexpr (DepthIndex == MaxDepth)
   {
     int64_t score;
+    const int64_t begin = __rdtsc();
 
     if constexpr (UseQuiescenceSearch)
       score = quiescence_alpha_beta_step<FindMin>(board, alpha, beta, cache);
@@ -1087,12 +1089,17 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
     }
 #endif
 
+    const int64_t end = __rdtsc();
+    cache.ticksPerLayer[DepthIndex] += end - begin;
+
     return ret;
   }
   else
   {
+    const int64_t begin = __rdtsc();
+
     list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
-    LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNoncapture));
+    LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNonCapture));
     moves_with_score<MaxDepth> ret;
     ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
 
@@ -1139,6 +1146,9 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
         }
       }
     }
+
+    const int64_t end = __rdtsc();
+    cache.ticksPerLayer[DepthIndex] += end - begin;
 
     return ret;
   }
@@ -1208,6 +1218,18 @@ chess_move get_alpha_beta_move(const chess_board &board)
 
   print('\n');
 #endif
+
+  print("\nTotal ticks: 100% (", FI(Group)(cache.ticksPerLayer[0]), ")\n");
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(cache.ticksPerLayer) - 1; i++)
+  {
+    const int64_t ticks = cache.ticksPerLayer[i] - cache.ticksPerLayer[i + 1];
+    print("Layer ", i, ": ", FF(Min(8), Max(8))((ticks * 100.f) / cache.ticksPerLayer[0]), "% (", FI(Group)(ticks), ")\n");
+  }
+
+  print("Layer ", Depth, ": ", FF(Min(8), Max(8))((cache.ticksPerLayer[Depth] * 100.f) / cache.ticksPerLayer[0]), "% (", FI(Group)(cache.ticksPerLayer[Depth]), ")\n");
+
+  print('\n');
 
   return moveInfo.moves[0];
 }
