@@ -833,7 +833,6 @@ constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Che
 
 int64_t evaluate_chess_board(const chess_board &board)
 {
-
   int64_t ret = 0;
 
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
@@ -1071,7 +1070,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
     const int64_t begin = __rdtsc();
 
     if constexpr (UseQuiescenceSearch)
-      score = quiescence_alpha_beta_step<FindMin>(board, alpha, beta, cache);
+      score = quiescence_alpha_beta_step<!FindMin>(board, alpha, beta, cache);
     else
       score = evaluate_chess_board(board);
 
@@ -1173,7 +1172,7 @@ chess_move get_minimax_move_black(const chess_board &board)
 template <bool IsWhite>
 chess_move get_alpha_beta_move(const chess_board &board)
 {
-  constexpr size_t Depth = 4;
+  constexpr size_t Depth = 6;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
