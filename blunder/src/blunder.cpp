@@ -1,5 +1,6 @@
 #include "blunder.h"
 #include "testable.h"
+#include "local_list.h"
 
 #include <conio.h>
 
@@ -545,6 +546,101 @@ lsResult get_all_valid_ordered_moves(list<chess_move> &out, const chess_board &b
 
 epilogue:
   return result;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+bool is_upper_case(const char c)
+{
+  return 'A' <= c && c <= 'Z';
+}
+
+chess_board get_board_from_starting_position(const char *startingPosition)
+{
+  chess_board ret;
+
+  vec2i8 currentPos = vec2i8(0, 7);
+  size_t i = (size_t)(-1);
+
+  while (true)
+  {
+    i++;
+
+    chess_piece_type piece = cpT_none;
+    bool isWhite = false;
+
+    switch (startingPosition[i])
+    {
+    case '.':
+    case ' ':
+      piece = cpT_none;
+      break;
+
+    case 'K':
+    case 'k':
+      piece = cpT_king;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'Q':
+    case 'q':
+      piece = cpT_queen;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'N':
+    case 'n':
+      piece = cpT_knight;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'B':
+    case 'b':
+      piece = cpT_bishop;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'R':
+    case 'r':
+      piece = cpT_rook;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'P':
+    case 'p':
+      piece = cpT_pawn;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case '\r':
+      continue;
+
+    case '\n':
+      currentPos.x = 0;
+      currentPos.y--;
+      continue;
+
+    default:
+      print_error_line("Unexpected Token in stream: ", startingPosition[i]);
+      lsFail();
+    }
+
+    lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
+
+    ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
+    currentPos.x++;
+
+    if ((currentPos.x == 7 && currentPos.y == 0) || currentPos.y < 0)
+      break;
+  }
+
+  const chess_board startBoard = chess_board::get_starting_point();
+
+  for (size_t j = 0; j < LS_ARRAYSIZE(startBoard.board); j++)
+    if (ret.board[j].piece != startBoard.board[j].piece)
+      ret.board[j].hasMoved = true;
+
+  return ret;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1436,6 +1532,47 @@ DEFINE_TESTABLE(pawn_double_step_test)
   TESTABLE_ASSERT_FALSE(!!board[vec2i8(0, 3)].lastWasDoubleStep);
 
   goto epilogue;
+epilogue:
+  return result;
+}
+
+bool replay_move_sequence(const chess_board startPosition, const std::initializer_list<chess_move> &moves)
+{
+  bool isBotTurn = true;
+  chess_board board = startPosition;
+
+  for (const chess_move move : moves)
+  {
+    if (isBotTurn)
+    {
+      chess_move m;
+      if (board.isWhitesTurn)
+        m = get_alpha_beta_move_white(board);
+      else
+        m = get_alpha_beta_move_black(board);
+
+      if (m != move)
+        return false;
+    }
+
+    board = perform_move(board, move);
+    isBotTurn = !isBotTurn;
+  }
+
+  return true;
+}
+
+DEFINE_TESTABLE(midgame_puzzle_test)
+{
+  lsResult result = lsR_Success;
+
+  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r..q.b.r\n..p.kpp.\nppQp.n..\n...PP.p.\n........\n........\nPPP...PP\nRN...RK."),
+    {
+      chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture),
+      chess_move(vec2i8(6, 6), vec2i8(5, 5), cmt_pawn_capture),
+      chess_move(vec2i8(5, 0), vec2i8(4, 0), cmt_rook),
+    }));;
+
 epilogue:
   return result;
 }

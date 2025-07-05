@@ -288,11 +288,6 @@ void perform_move(chess_board &board, list<chess_move> &moves, const ai_type ai)
 
 //////////////////////////////////////////////////////////////////////////
 
-bool is_upper_case(const char c)
-{
-  return 'A' <= c && c <= 'Z';
-}
-
 lsResult read_start_position_from_file(const char *filename, chess_board &board)
 {
   lsResult result = lsR_Success;
@@ -304,83 +299,7 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
 
   LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
 
-  {
-    vec2i8 currentPos = vec2i8(0, 7);
-
-    for (size_t i = 0; i < fileSize; i++)
-    {
-      chess_piece_type piece = cpT_none;
-      bool isWhite = false;;
-
-      switch (fileContents[i])
-      {
-      case '.':
-      case ' ':
-        piece = cpT_none;
-        break;
-
-      case 'K':
-      case 'k':
-        piece = cpT_king;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'Q':
-      case 'q':
-        piece = cpT_queen;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'N':
-      case 'n':
-        piece = cpT_knight;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'B':
-      case 'b':
-        piece = cpT_bishop;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'R':
-      case 'r':
-        piece = cpT_rook;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'P':
-      case 'p':
-        piece = cpT_pawn;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case '\r':
-        continue;
-
-      case '\n':
-        currentPos.x = 0;
-        currentPos.y--;
-        continue;
-
-      default:
-        print_error_line("Unexpected Token in file: ", fileContents[i]);
-        lsFail();
-      }
-
-      lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
-
-      board[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
-      currentPos.x++;
-    }
-
-    const chess_board startBoard = chess_board::get_starting_point();
-
-    for (size_t i = 0; i < LS_ARRAYSIZE(startBoard.board); i++)
-      if (board.board[i].piece != startBoard.board[i].piece)
-        board.board[i].hasMoved = true;
-
-  }
+  board = get_board_from_starting_position(fileContents);
 
 epilogue:
   return result;

@@ -91,6 +91,8 @@ struct chess_board
   static chess_board get_starting_point();
 };
 
+chess_board get_board_from_starting_position(const char *startingPosition);
+
 enum chess_move_type : uint8_t
 {
   cmt_invalid,
@@ -139,6 +141,11 @@ struct chess_move
 
     lsAssert(start.x >= 0 && start.x < BoardWidth && start.y >= 0 && start.y < BoardWidth);
     lsAssert(target.x >= 0 && target.x < BoardWidth && target.y >= 0 && target.y < BoardWidth);
+  }
+
+  bool operator ==(const chess_move other) 
+  {
+    return startX == other.startX && startY == other.startY && targetX == other.targetX && targetY == other.targetY && isPromotion == other.isPromotion && (!isPromotion || (isPromotedToQueen == other.isPromotedToQueen));
   }
 };
 
