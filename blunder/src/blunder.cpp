@@ -1160,6 +1160,14 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
 {
   static_assert(DepthIndex <= MaxDepth);
 
+  if constexpr (FindMin)
+    if (board.hasWhiteWon)
+      return moves_with_score<MaxDepth>(cache.currentMove, PieceScores[cpT_king]);
+
+  if constexpr (!FindMin)
+    if (board.hasBlackWon)
+      return moves_with_score<MaxDepth>(cache.currentMove, -PieceScores[cpT_king]);
+
   if constexpr (DepthIndex == MaxDepth)
   {
     int64_t score;
@@ -1380,6 +1388,12 @@ void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_ca
   }
   else
   {
+    if (lsAbs(ret.score) >= PieceScores[cpT_king])
+    {
+      lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
+      return;
+    }
+
     ret = alpha_beta_aspiration<Depth, MaxDepth, FindMin>(board, ret.score, cache);
 
     if constexpr (MaxDepth > Depth)
@@ -1405,7 +1419,7 @@ chess_move get_complex_move(const chess_board &board)
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
 
-  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
+  print(FU(Group)(cache.nodesVisited), " + ", FU(Group)(cache.quiescenceNodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)((cache.nodesVisited + cache.quiescenceNodesVisited) / ((after - before) * 1e-9f)), "/s)\n");
 
   print("\nBest Moves (rating: ", moveInfo.score, "):\n");
 
@@ -1566,11 +1580,27 @@ DEFINE_TESTABLE(midgame_puzzle_test)
 {
   lsResult result = lsR_Success;
 
+  print("Test Puzzle #1\n");
+
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r..q.b.r\n..p.kpp.\nppQp.n..\n...PP.p.\n........\n........\nPPP...PP\nRN...RK."),
     {
       chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(6, 6), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(5, 0), vec2i8(4, 0), cmt_rook),
+    }));;
+
+  print("Test Puzzle #2\n");
+
+  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r.q..r..\npbb..p..\n.p...knQ\n..p..p..\n........\n..PP....\nPP....PP\nRNB.R.K."),
+    {
+      chess_move(vec2i8(2, 0), vec2i8(6, 4), cmt_bishop)
+    }));;
+
+  print("Test Puzzle #3\n");
+
+  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR"),
+    {
+      chess_move(vec2i8(4, 4), vec2i8(1, 4), cmt_queen_straight)
     }));;
 
 epilogue:
