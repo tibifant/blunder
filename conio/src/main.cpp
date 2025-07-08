@@ -41,7 +41,7 @@ int32_t main(const int32_t argc, char **pArgv)
   ai_type white_player = ait_player;
   ai_type black_player = ait_alphabeta;
 
-  bool runTests = false;
+  bool runTests = true;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {
@@ -65,8 +65,8 @@ int32_t main(const int32_t argc, char **pArgv)
       white_player = ait_complex;
     else if (lsStringEquals("--complex-black", pArgv[i]))
       black_player = ait_complex;
-    else if (lsStringEquals("--run-tests", pArgv[i]))
-      runTests = true;
+    else if (lsStringEquals("--no-tests", pArgv[i]))
+      runTests = false;
     else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
       lsFail();
   }
