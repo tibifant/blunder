@@ -643,6 +643,111 @@ chess_board get_board_from_starting_position(const char *startingPosition)
   return ret;
 }
 
+chess_board get_board_from_fen(const char *fenString)
+{
+  chess_board ret;
+
+  vec2i8 currentPos = vec2i8(0, 7);
+  size_t i = (size_t)(-1);
+
+  while (true)
+  {
+    i++;
+
+    chess_piece_type piece = cpT_none;
+    bool isWhite = false;
+
+    switch (fenString[i])
+    {
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+      const uint8_t count = fenString[i] - '0';
+      lsAssert(currentPos.x + count < BoardWidth);
+
+      for (size_t j = 0; j < count; j++)
+      {
+        ret[currentPos] = chess_piece(cpT_none, true);
+        currentPos.x++;
+      }
+
+      continue;
+
+    case 'K':
+    case 'k':
+      piece = cpT_king;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'Q':
+    case 'q':
+      piece = cpT_queen;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'N':
+    case 'n':
+      piece = cpT_knight;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'B':
+    case 'b':
+      piece = cpT_bishop;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'R':
+    case 'r':
+      piece = cpT_rook;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'P':
+    case 'p':
+      piece = cpT_pawn;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case '/':
+      currentPos.x = 0;
+      currentPos.y--;
+      continue;
+
+    default:
+      print_error_line("Unexpected Token in stream: ", fenString[i]);
+      lsFail();
+    }
+
+    lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
+
+    ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
+    currentPos.x++;
+
+    if ((currentPos.x == 7 && currentPos.y == 0) || currentPos.y < 0)
+      break;
+  }
+
+  i++;
+  lsAssert(fenString[i] == ' ');
+
+  i++;
+  ret.isWhitesTurn = fenString[i] == 'w';
+
+  const chess_board startBoard = chess_board::get_starting_point();
+
+  for (size_t j = 0; j < LS_ARRAYSIZE(startBoard.board); j++)
+    if (ret.board[j].piece != startBoard.board[j].piece)
+      ret.board[j].hasMoved = true;
+
+  return ret;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 chess_hash_board chess_hash_board_create(const chess_board &board)

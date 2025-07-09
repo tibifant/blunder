@@ -298,14 +298,47 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
   lsResult result = lsR_Success;
 
   char *fileContents = nullptr;
-  size_t fileSize;
+  size_t _unused;
 
   print_log_line("Trying to read starting Position from file: ", filename);
 
-  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &_unused));
 
   board = get_board_from_starting_position(fileContents);
 
 epilogue:
   return result;
 }
+
+//lsResult parse_fen_book(const char *filename, chess_hash_board *pBoards, const size_t count)
+//{
+//  lsResult result = lsR_Success;
+//
+//  print_log_line("Trying to read board from file: ", filename);
+//
+//  char *fileContents = nullptr;
+//  size_t fileSize;
+//
+//  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+//
+//  lsZeroMemory(&pBoards);
+//
+//  {
+//    size_t addedBoardCount = 0;
+//
+//    while (addedBoardCount < count)
+//    {
+//      chess_board b;
+//
+//      // turn board to hashboard
+//      // hash the board
+//      // if board does not already exist
+//        // save to pBoards
+//
+//      // find end of line
+//    }
+//  }
+//
+//epilogue:
+//  return result;
+//}
