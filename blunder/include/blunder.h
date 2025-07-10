@@ -58,6 +58,8 @@ struct chess_piece
 
 static_assert(sizeof(chess_piece) == sizeof(uint8_t));
 
+//////////////////////////////////////////////////////////////////////////
+
 constexpr size_t BoardWidth = 8;
 
 struct chess_board
@@ -93,6 +95,8 @@ struct chess_board
 
 chess_board get_board_from_starting_position(const char *startingPosition);
 chess_board get_board_from_fen(const char *fenString);
+
+//////////////////////////////////////////////////////////////////////////
 
 enum chess_move_type : uint8_t
 {
@@ -154,10 +158,27 @@ struct chess_move
 static_assert(sizeof(chess_move) == sizeof(uint16_t));
 #endif
 
-struct chess_hash_board
+lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
+chess_board perform_move(const chess_board &board, const chess_move move);
+
+//////////////////////////////////////////////////////////////////////////
+
+struct nibble_board
 {
   uint8_t nibbleMap[8 * 4];
   uint32_t isWhitesTurn : 1;
+
+  inline bool operator==(const nibble_board &other) const
+  {
+    return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
+  }
+};
+
+nibble_board nibble_board_create(const chess_board &board);
+uint64_t lsHash(const nibble_board &board);
+
+struct chess_hash_board : nibble_board
+{
   int32_t score : 31;
   chess_move move;
 
@@ -173,26 +194,6 @@ static_assert(_chess_piece_type_count <= (1 << 3));
 static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 #endif
 
-chess_hash_board chess_hash_board_create(const chess_board &board);
-uint64_t lsHash(const chess_hash_board &board);
-
-struct simple_chess_hash_board
-{
-  uint8_t nibbleMap[8 * 4];
-  uint32_t isWhitesTurn : 1;
-
-  inline bool operator==(const simple_chess_hash_board &other) const
-  {
-    return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
-  }
-};
-
-simple_chess_hash_board simple_chess_hash_board_create(const chess_board &board);
-uint64_t lsHash(const simple_chess_hash_board &board);
-
-lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
-
-chess_board perform_move(const chess_board &board, const chess_move move);
 int64_t evaluate_chess_board(const chess_board &board);
 
 chess_move get_minimax_move_white(const chess_board &board);

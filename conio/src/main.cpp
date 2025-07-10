@@ -310,7 +310,7 @@ epilogue:
   return result;
 }
 
-lsResult parse_fen_book(const char *filename, simple_chess_hash_board *pBoards, const size_t count)
+lsResult parse_fen_book(const char *filename, nibble_board *pBoards, const size_t count)
 {
   lsResult result = lsR_Success;
 
@@ -336,7 +336,7 @@ lsResult parse_fen_book(const char *filename, simple_chess_hash_board *pBoards, 
 
       index++;
 
-      const simple_chess_hash_board hashBoard = simple_chess_hash_board_create(b);
+      const nibble_board hashBoard = nibble_board_create(b);
       const uint64_t hash = lsHash(hashBoard);
 
       if (pBoards[hash] == hashBoard)

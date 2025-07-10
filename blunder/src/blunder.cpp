@@ -550,6 +550,134 @@ epilogue:
 
 //////////////////////////////////////////////////////////////////////////
 
+__forceinline void assert_move_type(const chess_move move, const chess_move_type type, [[maybe_unused]] const chess_board &board)
+{
+#ifdef _DEBUG
+  lsAssert(move.moveType == type);
+#else
+  (void)board;
+  (void)move;
+  (void)type;
+#endif
+}
+
+chess_board perform_move(const chess_board &board, const chess_move move)
+{
+  chess_board ret = board;
+  ret.isWhitesTurn = (uint8_t)!board.isWhitesTurn;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(ret.board); i++)
+    ret.board[i].lastWasDoubleStep = false;
+
+  chess_piece &origin = ret[vec2i8(move.startX, move.startY)];
+  chess_piece &target = ret[vec2i8(move.targetX, move.targetY)];
+  lsAssert(origin.isWhite == board.isWhitesTurn);
+
+  if (target.piece == cpT_king)
+  {
+    size_t kingCount = 0;
+
+    for (size_t i = 0; i < LS_ARRAYSIZE(ret.board); i++)
+      kingCount += (size_t)(ret.board[i] == target);
+
+    if (kingCount == 1)
+    {
+      if (target.isWhite)
+        ret.hasBlackWon = true;
+      else
+        ret.hasWhiteWon = true;
+    }
+  }
+
+  if (origin.piece == cpT_pawn)
+  {
+    if (((move.startY == 1 && origin.isWhite) || (move.startY == 6 && !origin.isWhite)) && lsAbs(move.startY - move.targetY) == 2)
+    {
+      assert_move_type(move, cmt_pawn_double_step, board);
+      origin.lastWasDoubleStep = true;
+    }
+    else if (move.isPromotion)
+    {
+      assert_move_type(move, cmt_pawn_promotion, board);
+      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
+
+      if (move.isPromotedToQueen)
+        origin.piece = cpT_queen;
+      else
+        origin.piece = cpT_knight;
+    }
+    else if (move.startX != move.targetX)
+    {
+      if (target.piece)
+      {
+        assert_move_type(move, cmt_pawn_capture, board);
+        lsAssert(target.isWhite == ret.isWhitesTurn);
+      }
+      else // en passant
+      {
+        assert_move_type(move, cmt_pawn_en_passant, board);
+        const vec2i8 enemyPos = vec2i8(move.targetX, move.startY);
+        lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
+        ret[enemyPos].piece = cpT_none;
+      }
+    }
+    else
+    {
+      assert_move_type(move, cmt_pawn, board);
+    }
+  }
+  else if (origin.piece == cpT_king)
+  {
+    // castlen
+    if (lsAbs(move.startX - move.targetX) > 1)
+    {
+      assert_move_type(move, cmt_king_castle, board);
+      lsAssert((move.targetY == 0 || move.targetY == BoardWidth - 1) && (move.targetX == 1 || move.targetX == BoardWidth - 2));
+
+      const vec2i8 rookPosOrigin = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX + 1, move.targetY) : vec2i8(move.targetX - 1, move.targetY);
+      const vec2i8 rookPosTarget = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX - 1, move.targetY) : vec2i8(move.targetX + 1, move.targetY);
+      lsAssert(board[rookPosOrigin].piece == cpT_rook);
+
+      chess_piece &rookOrigin = ret[rookPosOrigin];
+      chess_piece &rookTarget = ret[rookPosTarget];
+
+      rookOrigin.hasMoved = true;
+      rookTarget = std::move(rookOrigin);
+      ret[rookPosOrigin].piece = cpT_none;
+    }
+    else
+    {
+      assert_move_type(move, cmt_king, board);
+    }
+  }
+  else if (origin.piece == cpT_knight)
+  {
+    assert_move_type(move, cmt_knight, board);
+  }
+  else if (origin.piece == cpT_bishop)
+  {
+    assert_move_type(move, cmt_bishop, board);
+  }
+  else if (origin.piece == cpT_rook)
+  {
+    assert_move_type(move, cmt_rook, board);
+  }
+  else if (origin.piece == cpT_queen)
+  {
+    if (move.startX != move.targetX && move.startY != move.targetY)
+      assert_move_type(move, cmt_queen_diagonal, board);
+    else
+      assert_move_type(move, cmt_queen_straight, board);
+  }
+
+  origin.hasMoved = true;
+  target = std::move(origin);
+
+  return ret;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 bool is_upper_case(const char c)
 {
   return 'A' <= c && c <= 'Z';
@@ -750,192 +878,6 @@ chess_board get_board_from_fen(const char *fenString)
   return ret;
 }
 
-//////////////////////////////////////////////////////////////////////////
-
-chess_hash_board chess_hash_board_create(const chess_board &board)
-{
-  chess_hash_board ret;
-  ret.isWhitesTurn = board.isWhitesTurn;
-
-  for (size_t i = 0; i < 8 * 4; i++)
-  {
-    const chess_piece pa = board.board[i * 2];
-    const chess_piece pb = board.board[i * 2 + 1];
-    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
-    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
-    ret.nibbleMap[i] = a | b;
-  }
-
-  return ret;
-}
-
-uint64_t lsHash(const chess_hash_board &board)
-{
-  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
-  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
-  v0 = _mm_aesdec_si128(v0, v1);
-  uint64_t ret = _mm_extract_epi64(v0, 0);
-  ret ^= board.isWhitesTurn;
-  return ret;
-}
-
-simple_chess_hash_board simple_chess_hash_board_create(const chess_board &board)
-{
-  simple_chess_hash_board ret;
-  ret.isWhitesTurn = board.isWhitesTurn;
-
-  for (size_t i = 0; i < 8 * 4; i++)
-  {
-    const chess_piece pa = board.board[i * 2];
-    const chess_piece pb = board.board[i * 2 + 1];
-    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
-    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
-    ret.nibbleMap[i] = a | b;
-  }
-
-  return ret;
-}
-
-uint64_t lsHash(const simple_chess_hash_board &board)
-{
-  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
-  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
-  v0 = _mm_aesdec_si128(v0, v1);
-  uint64_t ret = _mm_extract_epi64(v0, 0);
-  ret ^= board.isWhitesTurn;
-  return ret;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-__forceinline void assert_move_type(const chess_move move, const chess_move_type type, [[maybe_unused]] const chess_board &board)
-{
-#ifdef _DEBUG
-  lsAssert(move.moveType == type);
-#else
-  (void)board;
-  (void)move;
-  (void)type;
-#endif
-}
-
-chess_board perform_move(const chess_board &board, const chess_move move)
-{
-  chess_board ret = board;
-  ret.isWhitesTurn = (uint8_t)!board.isWhitesTurn;
-
-  for (size_t i = 0; i < LS_ARRAYSIZE(ret.board); i++)
-    ret.board[i].lastWasDoubleStep = false;
-
-  chess_piece &origin = ret[vec2i8(move.startX, move.startY)];
-  chess_piece &target = ret[vec2i8(move.targetX, move.targetY)];
-  lsAssert(origin.isWhite == board.isWhitesTurn);
-
-  if (target.piece == cpT_king)
-  {
-    size_t kingCount = 0;
-
-    for (size_t i = 0; i < LS_ARRAYSIZE(ret.board); i++)
-      kingCount += (size_t)(ret.board[i] == target);
-
-    if (kingCount == 1)
-    {
-      if (target.isWhite)
-        ret.hasBlackWon = true;
-      else
-        ret.hasWhiteWon = true;
-    }
-  }
-
-  if (origin.piece == cpT_pawn)
-  {
-    if (((move.startY == 1 && origin.isWhite) || (move.startY == 6 && !origin.isWhite)) && lsAbs(move.startY - move.targetY) == 2)
-    {
-      assert_move_type(move, cmt_pawn_double_step, board);
-      origin.lastWasDoubleStep = true;
-    }
-    else if (move.isPromotion)
-    {
-      assert_move_type(move, cmt_pawn_promotion, board);
-      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
-
-      if (move.isPromotedToQueen)
-        origin.piece = cpT_queen;
-      else
-        origin.piece = cpT_knight;
-    }
-    else if (move.startX != move.targetX)
-    {
-      if (target.piece)
-      {
-        assert_move_type(move, cmt_pawn_capture, board);
-        lsAssert(target.isWhite == ret.isWhitesTurn);
-      }
-      else // en passant
-      {
-        assert_move_type(move, cmt_pawn_en_passant, board);
-        const vec2i8 enemyPos = vec2i8(move.targetX, move.startY);
-        lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
-        ret[enemyPos].piece = cpT_none;
-      }
-    }
-    else
-    {
-      assert_move_type(move, cmt_pawn, board);
-    }
-  }
-  else if (origin.piece == cpT_king)
-  {
-    // castlen
-    if (lsAbs(move.startX - move.targetX) > 1)
-    {
-      assert_move_type(move, cmt_king_castle, board);
-      lsAssert((move.targetY == 0 || move.targetY == BoardWidth - 1) && (move.targetX == 1 || move.targetX == BoardWidth - 2));
-
-      const vec2i8 rookPosOrigin = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX + 1, move.targetY) : vec2i8(move.targetX - 1, move.targetY);
-      const vec2i8 rookPosTarget = move.targetX == BoardWidth - 2 ? vec2i8(move.targetX - 1, move.targetY) : vec2i8(move.targetX + 1, move.targetY);
-      lsAssert(board[rookPosOrigin].piece == cpT_rook);
-
-      chess_piece &rookOrigin = ret[rookPosOrigin];
-      chess_piece &rookTarget = ret[rookPosTarget];
-
-      rookOrigin.hasMoved = true;
-      rookTarget = std::move(rookOrigin);
-      ret[rookPosOrigin].piece = cpT_none;
-    }
-    else
-    {
-      assert_move_type(move, cmt_king, board);
-    }
-  }
-  else if (origin.piece == cpT_knight)
-  {
-    assert_move_type(move, cmt_knight, board);
-  }
-  else if (origin.piece == cpT_bishop)
-  {
-    assert_move_type(move, cmt_bishop, board);
-  }
-  else if (origin.piece == cpT_rook)
-  {
-    assert_move_type(move, cmt_rook, board);
-  }
-  else if (origin.piece == cpT_queen)
-  {
-    if (move.startX != move.targetX && move.startY != move.targetY)
-      assert_move_type(move, cmt_queen_diagonal, board);
-    else
-      assert_move_type(move, cmt_queen_straight, board);
-  }
-
-  origin.hasMoved = true;
-  target = std::move(origin);
-
-  return ret;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
 inline void place_symmetric_last_row(chess_board &board, const chess_piece_type piece, const int8_t x)
 {
   board[vec2i8(x, 0)] = chess_piece(piece, true);
@@ -959,6 +901,35 @@ chess_board chess_board::get_starting_point()
   }
 
   return board;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+nibble_board nibble_board_create(const chess_board &board)
+{
+  nibble_board ret;
+  ret.isWhitesTurn = board.isWhitesTurn;
+
+  for (size_t i = 0; i < 8 * 4; i++)
+  {
+    const chess_piece pa = board.board[i * 2];
+    const chess_piece pb = board.board[i * 2 + 1];
+    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
+    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
+    ret.nibbleMap[i] = a | b;
+  }
+
+  return ret;
+}
+
+uint64_t lsHash(const nibble_board &board)
+{
+  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
+  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
+  v0 = _mm_aesdec_si128(v0, v1);
+  uint64_t ret = _mm_extract_epi64(v0, 0);
+  ret ^= board.isWhitesTurn;
+  return ret;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1089,6 +1060,8 @@ int64_t evaluate_chess_board(const chess_board &board)
   return ret;
 }
 
+//////////////////////////////////////////////////////////////////////////
+
 struct move_with_score
 {
   chess_move move;
@@ -1134,6 +1107,8 @@ move_with_score minimax_step(const chess_board &board)
     return ret;
   }
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 template <size_t MaxDepth>
 struct moves_with_score
@@ -1199,6 +1174,8 @@ struct alpha_beta_minimax_cache
   }
 };
 
+//////////////////////////////////////////////////////////////////////////
+
 constexpr float_t CacheSizeMB = (alpha_beta_minimax_cache<1>::hashValues * sizeof(chess_hash_board)) / (1024.0 * 1024.0);
 
 template <size_t MaxDepth>
@@ -1226,6 +1203,8 @@ void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, c
   board.move = ret.move;
   cache.pCache[hash] = std::move(board);
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 template <bool FindMin, size_t CacheDepth, size_t MaxDepth = alpha_beta_minimax_cache<CacheDepth>::MaxQuiescenceDepth>
 int64_t quiescence_alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<CacheDepth> &cache, const size_t depthIndex = 0)
@@ -1393,6 +1372,8 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
   }
 }
 
+//////////////////////////////////////////////////////////////////////////
+
 constexpr size_t DefaultMinimaxDepth = 4;
 
 chess_move get_minimax_move_white(const chess_board &board)
@@ -1534,6 +1515,8 @@ void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_ca
       alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
   }
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 template <bool IsWhite>
 chess_move get_complex_move(const chess_board &board)
