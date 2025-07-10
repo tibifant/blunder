@@ -310,35 +310,43 @@ epilogue:
   return result;
 }
 
-//lsResult parse_fen_book(const char *filename, chess_hash_board *pBoards, const size_t count)
-//{
-//  lsResult result = lsR_Success;
-//
-//  print_log_line("Trying to read board from file: ", filename);
-//
-//  char *fileContents = nullptr;
-//  size_t fileSize;
-//
-//  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
-//
-//  lsZeroMemory(&pBoards);
-//
-//  {
-//    size_t addedBoardCount = 0;
-//
-//    while (addedBoardCount < count)
-//    {
-//      chess_board b;
-//
-//      // turn board to hashboard
-//      // hash the board
-//      // if board does not already exist
-//        // save to pBoards
-//
-//      // find end of line
-//    }
-//  }
-//
-//epilogue:
-//  return result;
-//}
+lsResult parse_fen_book(const char *filename, simple_chess_hash_board *pBoards, const size_t count)
+{
+  lsResult result = lsR_Success;
+
+  print_log_line("Trying to read board from file: ", filename);
+
+  char *fileContents = nullptr;
+  size_t fileSize;
+
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+
+  lsZeroMemory(&pBoards);
+
+  {
+    size_t addedBoardCount = 0;
+    size_t index = 0;
+
+    while (addedBoardCount < count)
+    {
+      chess_board b = get_board_from_fen(fileContents + index);
+
+      while (fileContents[index] != '\n')
+        index++;
+
+      index++;
+
+      const simple_chess_hash_board hashBoard = simple_chess_hash_board_create(b);
+      const uint64_t hash = lsHash(hashBoard);
+
+      if (pBoards[hash] == hashBoard)
+        continue;
+
+      pBoards[hash] = hashBoard;
+      addedBoardCount++;
+    }
+  }
+
+epilogue:
+  return result;
+}

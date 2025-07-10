@@ -167,28 +167,28 @@ struct chess_hash_board
   }
 };
 
-//struct chess_opening_hash_board
-//{
-//  uint8_t nibbleMap[8 * 4];
-//  uint32_t isWhitesTurn : 1;
-//  chess_move moves[8];
-//
-//  inline bool operator==(const chess_hash_board &other) const
-//  {
-//    return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
-//  }
-//};
-
 static_assert(_chess_piece_type_count <= (1 << 3));
 
 #ifndef _DEBUG
 static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 #endif
 
-//////////////////////////////////////////////////////////////////////////
-
 chess_hash_board chess_hash_board_create(const chess_board &board);
 uint64_t lsHash(const chess_hash_board &board);
+
+struct simple_chess_hash_board
+{
+  uint8_t nibbleMap[8 * 4];
+  uint32_t isWhitesTurn : 1;
+
+  inline bool operator==(const simple_chess_hash_board &other) const
+  {
+    return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
+  }
+};
+
+simple_chess_hash_board simple_chess_hash_board_create(const chess_board &board);
+uint64_t lsHash(const simple_chess_hash_board &board);
 
 lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
 

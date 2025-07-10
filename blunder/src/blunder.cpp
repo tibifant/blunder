@@ -630,7 +630,7 @@ chess_board get_board_from_starting_position(const char *startingPosition)
     ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
     currentPos.x++;
 
-    if ((currentPos.x == 7 && currentPos.y == 0) || currentPos.y < 0)
+    if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
       break;
   }
 
@@ -667,16 +667,18 @@ chess_board get_board_from_fen(const char *fenString)
     case '6':
     case '7':
     case '8':
+    {
       const uint8_t count = fenString[i] - '0';
-      lsAssert(currentPos.x + count < BoardWidth);
+      lsAssert(currentPos.x + count - 1 < BoardWidth);
 
       for (size_t j = 0; j < count; j++)
       {
-        ret[currentPos] = chess_piece(cpT_none, true);
+        ret[currentPos] = chess_piece(cpT_none, false);
         currentPos.x++;
       }
 
       continue;
+    }
 
     case 'K':
     case 'k':
@@ -729,7 +731,7 @@ chess_board get_board_from_fen(const char *fenString)
     ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
     currentPos.x++;
 
-    if ((currentPos.x == 7 && currentPos.y == 0) || currentPos.y < 0)
+    if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
       break;
   }
 
@@ -768,6 +770,33 @@ chess_hash_board chess_hash_board_create(const chess_board &board)
 }
 
 uint64_t lsHash(const chess_hash_board &board)
+{
+  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
+  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
+  v0 = _mm_aesdec_si128(v0, v1);
+  uint64_t ret = _mm_extract_epi64(v0, 0);
+  ret ^= board.isWhitesTurn;
+  return ret;
+}
+
+simple_chess_hash_board simple_chess_hash_board_create(const chess_board &board)
+{
+  simple_chess_hash_board ret;
+  ret.isWhitesTurn = board.isWhitesTurn;
+
+  for (size_t i = 0; i < 8 * 4; i++)
+  {
+    const chess_piece pa = board.board[i * 2];
+    const chess_piece pb = board.board[i * 2 + 1];
+    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
+    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
+    ret.nibbleMap[i] = a | b;
+  }
+
+  return ret;
+}
+
+uint64_t lsHash(const simple_chess_hash_board &board)
 {
   __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
   __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
@@ -1707,6 +1736,31 @@ DEFINE_TESTABLE(midgame_puzzle_test)
     {
       chess_move(vec2i8(4, 4), vec2i8(1, 4), cmt_queen_straight)
     }));;
+
+epilogue:
+  return result;
+}
+
+DEFINE_TESTABLE(fen_parsing_test)
+{
+  lsResult result = lsR_Success;
+  
+  const chess_board s = get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR");
+  const chess_board f = get_board_from_fen("r3kb1r/ppp1pppp/n4n2/4Q3/5B2/2N1KP2/PPP3qP/3R2NR w");
+
+  print_board(s);
+  print_board(f);
+
+  for (int8_t y = 0; y < BoardWidth; y++)
+  {
+    for (int8_t x = 0; x < BoardWidth; x++)
+    {
+      const vec2i8 pos = vec2i8(x, y);
+      TESTABLE_ASSERT_EQUAL(s[pos], f[pos]);
+    }
+  }
+
+  TESTABLE_ASSERT_EQUAL((bool)f.isWhitesTurn, true);
 
 epilogue:
   return result;
