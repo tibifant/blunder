@@ -148,7 +148,7 @@ struct chess_move
     lsAssert(target.x >= 0 && target.x < BoardWidth && target.y >= 0 && target.y < BoardWidth);
   }
 
-  bool operator ==(const chess_move other) 
+  bool operator ==(const chess_move other)
   {
     return startX == other.startX && startY == other.startY && targetX == other.targetX && targetY == other.targetY && isPromotion == other.isPromotion && (!isPromotion || (isPromotedToQueen == other.isPromotedToQueen));
   }
@@ -193,6 +193,46 @@ static_assert(_chess_piece_type_count <= (1 << 3));
 #ifndef _DEBUG
 static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 #endif
+
+// this structure assumes that no promotions can have taken place and that both kings still exist (duh!)
+struct micro_starting_board
+{
+  uint8_t whitePawns : 3 = 0; // [0 ~ 7]
+  uint8_t blackPawns : 3 = 0; // [0 ~ 7]
+  uint8_t whiteQueen : 1 = 0; // [0 ~ 1]
+  uint8_t blackQueen : 1 = 0; // [0 ~ 1]
+  // using 6*2 bits to represent 3^6 states (~9.5 bits) is technically wasteful, but doesn't actually result in waste here, as we're still below the 16 bits that the padded integers would result in
+  uint8_t whiteKnights : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackKnights : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t whiteBishops : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackBishops : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t whiteRooks : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackRooks : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t isWhitesTurn : 1 = true;
+  uint8_t vals[192 / 8] = {}; // 192 bit
+
+  bool operator ==(const micro_starting_board &other)
+  {
+    bool ret = whitePawns == other.whitePawns && blackPawns == other.blackPawns && whiteQueen == other.whiteQueen && blackQueen == other.blackQueen && whiteKnights == other.whiteKnights && blackKnights == other.blackKnights && whiteBishops == other.whiteBishops && blackBishops == other.blackBishops && whiteRooks == other.whiteRooks && blackRooks == other.blackRooks && isWhitesTurn == other.isWhitesTurn;
+
+    for (size_t i = 0; i < LS_ARRAYSIZE(vals); i++)
+      ret &= vals[i] == other.vals[i];
+
+    return ret;
+  }
+
+  bool is_empty()
+  {
+    const micro_starting_board empty;
+    return *this == empty;
+  }
+};
+
+uint64_t lsHash(const micro_starting_board &board);
+micro_starting_board get_mirco_starting_board(const chess_board &board);
+uint64_t lsHash(const micro_starting_board &board);
+
+//////////////////////////////////////////////////////////////////////////
 
 int64_t evaluate_chess_board(const chess_board &board);
 

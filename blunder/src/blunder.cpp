@@ -934,6 +934,104 @@ uint64_t lsHash(const nibble_board &board)
 
 //////////////////////////////////////////////////////////////////////////
 
+struct micro_board_write_state
+{
+  uint8_t *pNext = nullptr;
+  uint16_t state = 0;
+  uint8_t stateBits = 0;
+
+  micro_board_write_state(uint8_t *pNext) : pNext(pNext) {}
+};
+
+void micro_board_write_state_append(micro_board_write_state &state, const uint8_t pos)
+{
+  lsAssert(pos < 64);
+  constexpr uint8_t bits = 6;
+  static_assert(1 << bits == 64);
+
+  state.state <<= bits; // *= 64
+  state.state += pos;
+  state.stateBits += bits;
+
+  if (state.stateBits >= 8)
+  {
+    *state.pNext = (uint8_t)state.state;
+    state.pNext++;
+    state.state >>= 8;
+    state.stateBits -= 8;
+  }
+}
+
+void micro_board_write_state_flush(micro_board_write_state &state)
+{
+  *state.pNext = (uint8_t)state.state;
+  state.pNext++;
+  state.stateBits = 0;
+}
+
+uint8_t micro_board_add_pieces(const chess_board &board, const chess_piece piece, micro_board_write_state &state)
+{
+  uint8_t found = 0;
+
+  for (uint8_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
+    if (board.board[i] == piece)
+      micro_board_write_state_append(state, i);
+
+  return found;
+}
+
+micro_starting_board get_mirco_starting_board(const chess_board &board)
+{
+  micro_starting_board ret;
+  micro_board_write_state state(ret.vals);
+
+  ret.whitePawns = micro_board_add_pieces(board, chess_piece(cpT_pawn, true), state);
+  ret.blackPawns = micro_board_add_pieces(board, chess_piece(cpT_pawn, false), state);
+
+  ret.whiteKnights = micro_board_add_pieces(board, chess_piece(cpT_knight, true), state);
+  ret.blackKnights = micro_board_add_pieces(board, chess_piece(cpT_knight, false), state);
+
+  ret.whiteBishops = micro_board_add_pieces(board, chess_piece(cpT_bishop, true), state);
+  ret.blackBishops = micro_board_add_pieces(board, chess_piece(cpT_bishop, false), state);
+
+  ret.whiteRooks = micro_board_add_pieces(board, chess_piece(cpT_rook, true), state);
+  ret.blackRooks = micro_board_add_pieces(board, chess_piece(cpT_rook, false), state);
+
+  ret.whiteQueen = micro_board_add_pieces(board, chess_piece(cpT_queen, true), state);
+  ret.blackQueen = micro_board_add_pieces(board, chess_piece(cpT_queen, false), state);
+
+  // there is one, or the game is over...
+  micro_board_add_pieces(board, chess_piece(cpT_king, true), state);
+  micro_board_add_pieces(board, chess_piece(cpT_king, false), state);
+
+  micro_board_write_state_flush(state);
+  return ret;
+}
+
+inline void hash_state_consume(uint64_t &state, const uint32_t val)
+{
+  state = state * 6364136223846793005ULL + (val | 0x100000000);
+}
+
+uint64_t lsHash(const micro_starting_board &board)
+{
+  constexpr size_t size = sizeof(board);
+  uint32_t data[((size + (sizeof(uint32_t) - 1)) / sizeof(uint32_t))];
+  memcpy(data, &board, size);
+  data[LS_ARRAYSIZE(data) - 1] = 0;
+  uint64_t state = 0xDEADF00D;
+  hash_state_consume(state, data[0]);
+  hash_state_consume(state, data[1]);
+  hash_state_consume(state, data[2]);
+  hash_state_consume(state, data[3]);
+  hash_state_consume(state, data[4]);
+  hash_state_consume(state, data[5]);
+  hash_state_consume(state, data[6]);
+  return (uint32_t)state;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 constexpr uint8_t SquareWeightFactor = 1;
 
 struct square_weights
@@ -1727,12 +1825,14 @@ epilogue:
 DEFINE_TESTABLE(fen_parsing_test)
 {
   lsResult result = lsR_Success;
-  
+
   const chess_board s = get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR");
   const chess_board f = get_board_from_fen("r3kb1r/ppp1pppp/n4n2/4Q3/5B2/2N1KP2/PPP3qP/3R2NR w");
+  const chess_board f2 = get_board_from_fen("rnbqk1nr/pppp1ppp/8/4p3/4PP2/2N5/PPPP2PP/R1BQKBR1 b");
 
   print_board(s);
   print_board(f);
+  print_board(f2);
 
   for (int8_t y = 0; y < BoardWidth; y++)
   {

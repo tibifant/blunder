@@ -22,6 +22,7 @@ void perform_move(chess_board &board, list<chess_move> &moves, const ai_type fro
 void print_board(const chess_board &board);
 char read_char();
 lsResult read_start_position_from_file(const char *filename, chess_board &board);
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t count);
 chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves);
 
 //////////////////////////////////////////////////////////////////////////
@@ -101,6 +102,12 @@ int32_t main(const int32_t argc, char **pArgv)
   } while (false);
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
+
+  const size_t count = 1024 * 16;
+  micro_starting_board *pHashMap = nullptr;
+  lsAllocZero(&pHashMap, count);
+
+  parse_fen_book("C:/data/common_openings.txt", pHashMap, count);
 
   list<chess_move> moves;
   print_board(board);
@@ -310,42 +317,59 @@ epilogue:
   return result;
 }
 
-lsResult parse_fen_book(const char *filename, nibble_board *pBoards, const size_t count)
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t count)
 {
   lsResult result = lsR_Success;
 
-  print_log_line("Trying to read board from file: ", filename);
+  print_log_line("Trying to read book from file: ", filename);
 
+  const size_t hashMask = (1ULL << lsHighestBit(count)) - 1;
+  lsAssert(count == hashMask + 1);
+  size_t collisionCount = 0;
+  size_t addedBoardCount = 0;
   char *fileContents = nullptr;
   size_t fileSize;
 
   LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
 
-  lsZeroMemory(&pBoards);
+  lsZeroMemory(pHashBoards, count);
 
   {
-    size_t addedBoardCount = 0;
     size_t index = 0;
 
     while (addedBoardCount < count)
     {
+      if (fileContents[index] == '\0')
+        break;
+
       chess_board b = get_board_from_fen(fileContents + index);
 
-      while (fileContents[index] != '\n')
+      while (fileContents[index] != '\n' && fileContents[index] != '\0')
         index++;
+
+      if (fileContents[index] == '\0')
+        break;
 
       index++;
 
-      const nibble_board hashBoard = nibble_board_create(b);
-      const uint64_t hash = lsHash(hashBoard);
+      const micro_starting_board board = get_mirco_starting_board(b);
+      const uint64_t hash = lsHash(board) & hashMask;
 
-      if (pBoards[hash] == hashBoard)
-        continue;
+      lsAssert(pHashBoards[hash] != board);
 
-      pBoards[hash] = hashBoard;
-      addedBoardCount++;
+      if (pHashBoards[hash].is_empty())
+      {
+        pHashBoards[hash] = board;
+        addedBoardCount++;
+      }
+      else
+      {
+        collisionCount++;
+      }
     }
   }
+
+  print("With count ", count, ": occupation: ", FF(Max(4))((addedBoardCount / count) * 100.f), "%, collisions: ", FF(Max(4))((collisionCount / count) * 100.f), "% (", collisionCount, ")\n");
 
 epilogue:
   return result;
