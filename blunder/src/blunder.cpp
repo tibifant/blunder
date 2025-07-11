@@ -805,7 +805,10 @@ chess_board get_board_from_fen(const char *fenString)
         currentPos.x++;
       }
 
-      continue;
+      if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
+        goto epilogue;
+      else
+        continue;
     }
 
     case 'K':
@@ -862,6 +865,8 @@ chess_board get_board_from_fen(const char *fenString)
     if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
       break;
   }
+
+epilogue:
 
   i++;
   lsAssert(fenString[i] == ' ');
@@ -974,8 +979,13 @@ uint8_t micro_board_add_pieces(const chess_board &board, const chess_piece piece
   uint8_t found = 0;
 
   for (uint8_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
+  {
     if (board.board[i] == piece)
+    {
       micro_board_write_state_append(state, i);
+      found++;
+    }
+  }
 
   return found;
 }
@@ -1796,21 +1806,21 @@ DEFINE_TESTABLE(midgame_puzzle_test)
   lsResult result = lsR_Success;
 
   print("Test Puzzle #1\n");
-
+  
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r..q.b.r\n..p.kpp.\nppQp.n..\n...PP.p.\n........\n........\nPPP...PP\nRN...RK."),
     {
       chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(6, 6), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(5, 0), vec2i8(4, 0), cmt_rook),
     }));;
-
+  
   print("Test Puzzle #2\n");
-
+  
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r.q..r..\npbb..p..\n.p...knQ\n..p..p..\n........\n..PP....\nPP....PP\nRNB.R.K."),
     {
       chess_move(vec2i8(2, 0), vec2i8(6, 4), cmt_bishop)
     }));;
-
+  
   print("Test Puzzle #3\n");
 
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR"),
@@ -1828,6 +1838,7 @@ DEFINE_TESTABLE(fen_parsing_test)
 
   const chess_board s = get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR");
   const chess_board f = get_board_from_fen("r3kb1r/ppp1pppp/n4n2/4Q3/5B2/2N1KP2/PPP3qP/3R2NR w");
+  const chess_board s2 = get_board_from_starting_position("rnbqk.nr\npppp.ppp\n........\n....p...\n....PP..\n..N.....\nPPPP..PP\nR.BQKBR.");
   const chess_board f2 = get_board_from_fen("rnbqk1nr/pppp1ppp/8/4p3/4PP2/2N5/PPPP2PP/R1BQKBR1 b");
 
   print_board(s);
