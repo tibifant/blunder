@@ -197,8 +197,8 @@ static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 // this structure assumes that no promotions can have taken place and that both kings still exist (duh!)
 struct micro_starting_board
 {
-  uint8_t whitePawns : 3 = 0; // [0 ~ 7]
-  uint8_t blackPawns : 3 = 0; // [0 ~ 7]
+  uint8_t whitePawns : 4 = 0; // [0 ~ 8]
+  uint8_t blackPawns : 4 = 0; // [0 ~ 8]
   uint8_t whiteQueen : 1 = 0; // [0 ~ 1]
   uint8_t blackQueen : 1 = 0; // [0 ~ 1]
   // using 6*2 bits to represent 3^6 states (~9.5 bits) is technically wasteful, but doesn't actually result in waste here, as we're still below the 16 bits that the padded integers would result in
@@ -208,7 +208,8 @@ struct micro_starting_board
   uint8_t blackBishops : 2 = 0; // [0 ~ 2] -> 2 bit
   uint8_t whiteRooks : 2 = 0; // [0 ~ 2] -> 2 bit
   uint8_t blackRooks : 2 = 0; // [0 ~ 2] -> 2 bit
-  uint8_t isWhitesTurn : 1 = true;
+  uint8_t isWhitesTurn : 1 = false;
+  uint8_t _unused : 1 = 0;
   uint8_t vals[192 / 8] = {}; // 192 bit
 
   bool operator ==(const micro_starting_board &other)

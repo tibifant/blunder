@@ -355,7 +355,8 @@ lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards,
       const micro_starting_board board = get_mirco_starting_board(b);
       const uint64_t hash = lsHash(board) & hashMask;
 
-      lsAssert(pHashBoards[hash] != board);
+      if (pHashBoards[hash] == board)
+        continue;
 
       if (pHashBoards[hash].is_empty())
       {
@@ -369,7 +370,7 @@ lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards,
     }
   }
 
-  print("With count ", count, ": occupation: ", FF(Max(4))((addedBoardCount / count) * 100.f), "%, collisions: ", FF(Max(4))((collisionCount / count) * 100.f), "% (", collisionCount, ")\n");
+  print("With count ", count, ": occupation: ", FF(Max(4))((addedBoardCount * 100.f) / count), "% (", addedBoardCount, "), collisions: ", FF(Max(4))((collisionCount * 100.f) / count), " % (", collisionCount, ")\n");
 
 epilogue:
   return result;
