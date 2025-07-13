@@ -314,64 +314,81 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
   board = get_board_from_starting_position(fileContents);
 
 epilogue:
+  lsFreePtr(&fileContents);
+
   return result;
 }
 
-lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t count)
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t hashCount)
 {
   lsResult result = lsR_Success;
 
   print_log_line("Trying to read book from file: ", filename);
 
-  const size_t hashMask = (1ULL << lsHighestBit(count)) - 1;
-  lsAssert(count == hashMask + 1);
-  size_t collisionCount = 0;
-  size_t addedBoardCount = 0;
-  char *fileContents = nullptr;
+  const size_t hashMask = (1ULL << lsHighestBit(hashCount)) - 1;
+  lsAssert(hashCount == hashMask + 1);
+  size_t collisions = 0;
+  size_t addedBoards = 0;
+  size_t duplicates = 0;
+  char *fileContentsOriginal = nullptr;
   size_t fileSize;
+  const char *fileContents = nullptr;
 
-  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContentsOriginal, &fileSize));
+  fileContents = fileContentsOriginal;
 
-  lsZeroMemory(pHashBoards, count);
+  lsZeroMemory(pHashBoards, hashCount);
 
   {
-    size_t index = 0;
-
-    while (addedBoardCount < count)
+    while (addedBoards < hashCount)
     {
-      if (fileContents[index] == '\0')
+      if (*fileContents == '\0')
         break;
 
-      chess_board b = get_board_from_fen(fileContents + index);
+      chess_board b = get_board_from_fen(&fileContents);
 
-      while (fileContents[index] != '\n' && fileContents[index] != '\0')
-        index++;
+      while (*fileContents != '\n' && *fileContents != '\0')
+      {
+        fileContents++;
+      }
 
-      if (fileContents[index] == '\0')
+      if (*fileContents == '\0')
         break;
 
-      index++;
+      fileContents++;
 
       const micro_starting_board board = get_mirco_starting_board(b);
-      const uint64_t hash = lsHash(board) & hashMask;
+      const uint64_t hash = lsHash(board);
+      bool placed = false;
 
-      if (pHashBoards[hash] == board)
-        continue;
+      for (size_t i = 0; i < 16; i++)
+      {
+        const uint64_t maskedHash = (hash + i) & hashMask;
 
-      if (pHashBoards[hash].is_empty())
-      {
-        pHashBoards[hash] = board;
-        addedBoardCount++;
+        if (pHashBoards[maskedHash].is_empty())
+        {
+          pHashBoards[maskedHash] = board;
+          addedBoards++;
+          placed = true;
+          break;
+        }
+        else if (pHashBoards[maskedHash] == board)
+        {
+          duplicates++;
+          placed = true;
+          break;
+        }
       }
-      else
-      {
-        collisionCount++;
-      }
+
+      if (!placed)
+        collisions++;
     }
   }
 
-  print("With count ", count, ": occupation: ", FF(Max(4))((addedBoardCount * 100.f) / count), "% (", addedBoardCount, "), collisions: ", FF(Max(4))((collisionCount * 100.f) / count), " % (", collisionCount, ")\n");
+  print("With hash map size ", hashCount, ": occupation: ", FF(Max(6))((addedBoards * 100.f) / hashCount), "% (", addedBoards, "), collisions: ", FF(Max(6))((collisions * 100.f) / hashCount), "% (", collisions, "), excluding ", duplicates, " duplicates (", FF(Max(6))(((addedBoards + duplicates) * 100.f) / (addedBoards + duplicates + collisions)), "% available)\n");
 
 epilogue:
+  lsFreePtr(&fileContentsOriginal);
+
   return result;
 }

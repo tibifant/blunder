@@ -773,7 +773,14 @@ chess_board get_board_from_starting_position(const char *startingPosition)
 
 chess_board get_board_from_fen(const char *fenString)
 {
+  return get_board_from_fen(&fenString);
+}
+
+chess_board get_board_from_fen(const char **pFenString)
+{
   chess_board ret;
+
+  const char *fenString = *pFenString;
 
   vec2i8 currentPos = vec2i8(0, 7);
   size_t i = (size_t)(-1);
@@ -806,7 +813,7 @@ chess_board get_board_from_fen(const char *fenString)
       }
 
       if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
-        goto epilogue;
+        goto on_board_parsed;
       else
         continue;
     }
@@ -866,8 +873,7 @@ chess_board get_board_from_fen(const char *fenString)
       break;
   }
 
-epilogue:
-
+on_board_parsed:
   i++;
   lsAssert(fenString[i] == ' ');
 
@@ -879,6 +885,8 @@ epilogue:
   for (size_t j = 0; j < LS_ARRAYSIZE(startBoard.board); j++)
     if (ret.board[j].piece != startBoard.board[j].piece)
       ret.board[j].hasMoved = true;
+
+  *pFenString = fenString + i;
 
   return ret;
 }
@@ -1023,21 +1031,57 @@ inline void hash_state_consume(uint64_t &state, const uint32_t val)
   state = state * 6364136223846793005ULL + (val | 0x100000000);
 }
 
+uint64_t lsHashData(const void *pData, const size_t size)
+{
+  constexpr uint64_t seed = 0x12CA7F00D511;
+
+  const uint64_t m = 0xC6A4A7935BD1E995LLU;
+  const int r = 47;
+
+  uint64_t h = seed ^ (size * m);
+
+  const uint64_t *pData64 = reinterpret_cast<const uint64_t *>(pData);
+  const uint64_t *pEnd64 = pData64 + (size / 8);
+
+  while (pData64 != pEnd64)
+  {
+    uint64_t k = *pData64++;
+
+    k *= m;
+    k ^= k >> r;
+    k *= m;
+
+    h ^= k;
+    h *= m;
+  }
+
+  const uint8_t *pData8 = reinterpret_cast<const uint8_t *>(pData64);
+
+  switch (size & 7)
+  {
+  case 7: h ^= (uint64_t)(pData8[6]) << 48;
+  case 6: h ^= (uint64_t)(pData8[5]) << 40;
+  case 5: h ^= (uint64_t)(pData8[4]) << 32;
+  case 4: h ^= (uint64_t)(pData8[3]) << 24;
+  case 3: h ^= (uint64_t)(pData8[2]) << 16;
+  case 2: h ^= (uint64_t)(pData8[1]) << 8;
+  case 1: h ^= (uint64_t)(pData8[0]);
+    h *= m;
+    break;
+  };
+
+  h ^= h >> r;
+  h *= m;
+  h ^= h >> r;
+
+  return h;
+}
+
 uint64_t lsHash(const micro_starting_board &board)
 {
-  constexpr size_t size = sizeof(board);
-  uint32_t data[((size + (sizeof(uint32_t) - 1)) / sizeof(uint32_t))];
-  memcpy(data, &board, size);
-  data[LS_ARRAYSIZE(data) - 1] = 0;
-  uint64_t state = 0xDEADF00D;
-  hash_state_consume(state, data[0]);
-  hash_state_consume(state, data[1]);
-  hash_state_consume(state, data[2]);
-  hash_state_consume(state, data[3]);
-  hash_state_consume(state, data[4]);
-  hash_state_consume(state, data[5]);
-  hash_state_consume(state, data[6]);
-  return (uint32_t)state;
+  LS_ALIGN(8) uint8_t data[sizeof(board)];
+  memcpy(data, &board, sizeof(board));
+  return lsHashData(data, sizeof(board));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1780,21 +1824,32 @@ bool replay_move_sequence(const chess_board startPosition, const std::initialize
   bool isBotTurn = true;
   chess_board board = startPosition;
 
+  print_board(board);
+
   for (const chess_move move : moves)
   {
     if (isBotTurn)
     {
       chess_move m;
       if (board.isWhitesTurn)
-        m = get_alpha_beta_move_white(board);
+        m = get_complex_move_white(board);
       else
-        m = get_alpha_beta_move_black(board);
+        m = get_complex_move_black(board);
+
+      print("Bot Turn: Chose Move: ");
+      print_move(m);
+      print(" | Expected: ");
+      print_move(move);
+      print("\n");
 
       if (m != move)
         return false;
     }
 
     board = perform_move(board, move);
+
+    print_board(board);
+
     isBotTurn = !isBotTurn;
   }
 
@@ -1806,21 +1861,21 @@ DEFINE_TESTABLE(midgame_puzzle_test)
   lsResult result = lsR_Success;
 
   print("Test Puzzle #1\n");
-  
+
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r..q.b.r\n..p.kpp.\nppQp.n..\n...PP.p.\n........\n........\nPPP...PP\nRN...RK."),
     {
       chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(6, 6), vec2i8(5, 5), cmt_pawn_capture),
       chess_move(vec2i8(5, 0), vec2i8(4, 0), cmt_rook),
     }));;
-  
+
   print("Test Puzzle #2\n");
-  
+
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r.q..r..\npbb..p..\n.p...knQ\n..p..p..\n........\n..PP....\nPP....PP\nRNB.R.K."),
     {
       chess_move(vec2i8(2, 0), vec2i8(6, 4), cmt_bishop)
     }));;
-  
+
   print("Test Puzzle #3\n");
 
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR"),

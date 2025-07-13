@@ -95,6 +95,7 @@ struct chess_board
 
 chess_board get_board_from_starting_position(const char *startingPosition);
 chess_board get_board_from_fen(const char *fenString);
+chess_board get_board_from_fen(const char **pFenString);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -214,17 +215,12 @@ struct micro_starting_board
 
   bool operator ==(const micro_starting_board &other)
   {
-    bool ret = whitePawns == other.whitePawns && blackPawns == other.blackPawns && whiteQueen == other.whiteQueen && blackQueen == other.blackQueen && whiteKnights == other.whiteKnights && blackKnights == other.blackKnights && whiteBishops == other.whiteBishops && blackBishops == other.blackBishops && whiteRooks == other.whiteRooks && blackRooks == other.blackRooks && isWhitesTurn == other.isWhitesTurn;
-
-    for (size_t i = 0; i < LS_ARRAYSIZE(vals); i++)
-      ret &= vals[i] == other.vals[i];
-
-    return ret;
+    return memcmp(this, &other, sizeof(*this)) == 0;
   }
 
   bool is_empty()
   {
-    const micro_starting_board empty;
+    static const micro_starting_board empty;
     return *this == empty;
   }
 };
