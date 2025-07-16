@@ -918,9 +918,9 @@ chess_board chess_board::get_starting_point()
 
 //////////////////////////////////////////////////////////////////////////
 
-nibble_board nibble_board_create(const chess_board &board)
+chess_hash_board chess_hash_board_create(const chess_board &board)
 {
-  nibble_board ret;
+  chess_hash_board ret;
   ret.isWhitesTurn = board.isWhitesTurn;
 
   for (size_t i = 0; i < 8 * 4; i++)
@@ -935,7 +935,7 @@ nibble_board nibble_board_create(const chess_board &board)
   return ret;
 }
 
-uint64_t lsHash(const nibble_board &board)
+uint64_t lsHash(const chess_hash_board &board)
 {
   __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
   __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);

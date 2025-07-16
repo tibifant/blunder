@@ -164,22 +164,10 @@ chess_board perform_move(const chess_board &board, const chess_move move);
 
 //////////////////////////////////////////////////////////////////////////
 
-struct nibble_board
+struct chess_hash_board
 {
   uint8_t nibbleMap[8 * 4];
   uint32_t isWhitesTurn : 1;
-
-  inline bool operator==(const nibble_board &other) const
-  {
-    return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
-  }
-};
-
-nibble_board nibble_board_create(const chess_board &board);
-uint64_t lsHash(const nibble_board &board);
-
-struct chess_hash_board : nibble_board
-{
   int32_t score : 31;
   chess_move move;
 
@@ -188,6 +176,9 @@ struct chess_hash_board : nibble_board
     return isWhitesTurn == other.isWhitesTurn && (memcmp(nibbleMap, other.nibbleMap, sizeof(nibbleMap)) == 0);
   }
 };
+
+chess_hash_board chess_hash_board_create(const chess_board &board);
+uint64_t lsHash(const chess_hash_board &board);
 
 static_assert(_chess_piece_type_count <= (1 << 3));
 
