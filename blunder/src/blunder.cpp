@@ -1270,7 +1270,7 @@ struct score_with_depth
   bool operator<(const score_with_depth other) const
   {
     if (score == other.score)
-      return depth < other.depth;
+      return depth > other.depth;
     else
       return score < other.score;
   }
@@ -1278,7 +1278,7 @@ struct score_with_depth
   bool operator<=(const score_with_depth other) const
   {
     if (score == other.score)
-      return depth <= other.depth;
+      return depth >= other.depth;
     else
       return score <= other.score;
   }
@@ -1286,7 +1286,7 @@ struct score_with_depth
   bool operator>(const score_with_depth other) const
   {
     if (score == other.score)
-      return depth < other.depth;
+      return depth > other.depth;
     else
       return score > other.score;
   }
@@ -1294,7 +1294,7 @@ struct score_with_depth
   bool operator>=(const score_with_depth other) const
   {
     if (score == other.score)
-      return depth <= other.depth;
+      return depth >= other.depth;
     else
       return score >= other.score;
   }
@@ -1521,9 +1521,6 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
 
     for (const chess_move move : moves)
     {
-      if (move == chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture))
-        __debugbreak();
-
 #ifdef _DEBUG
       cache.nodesVisited++;
 #endif
@@ -1704,7 +1701,7 @@ void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_ca
   }
   else
   {
-    if (lsAbs(ret.score.score) >= PieceScores[cpT_king])
+    if (lsAbs(ret.score.score) >= PieceScores[cpT_king] && ret.score.depth <= Depth)
     {
       lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
       return;
@@ -1969,7 +1966,7 @@ DEFINE_TESTABLE(score_with_depth_operator_test)
   lsResult result = lsR_Success;
 
   TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) < score_with_depth(1, 2));
-  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(2, 1));
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) < score_with_depth(2, 1));
 
   TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(1, 2));
   TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(1, 1));
