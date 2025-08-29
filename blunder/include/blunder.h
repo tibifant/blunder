@@ -124,7 +124,7 @@ struct chess_move
   uint8_t targetY : 3;
 
   uint8_t isPromotion : 1 = false;
-  uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alligment issues.
+  uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alignment issues.
 
 #ifdef _DEBUG
   chess_move_type moveType = cmt_invalid; // only for asserting!

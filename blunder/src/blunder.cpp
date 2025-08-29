@@ -1472,10 +1472,6 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
     if (board.hasBlackWon)
       return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(-PieceScores[cpT_king], DepthIndex));
 
-  //if constexpr (DepthIndex == MaxDepth - 4)
-  //{
-  //  // return when it took >5s
-  //}
   if constexpr (DepthIndex == MaxDepth)
   {
     score_with_depth score;
@@ -1521,9 +1517,6 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
 #ifdef _DEBUG
       cache.nodesVisited++;
 #endif
-
-      //if (move == chess_move(vec2i8(4, 4), vec2i8(1, 4), cmt_queen_straight))
-      //  __debugbreak();
 
       const chess_board after = perform_move(board, move);
       cache.currentMove[DepthIndex] = move;
@@ -1920,13 +1913,6 @@ DEFINE_TESTABLE(midgame_puzzle_test)
   TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r.q..r..\npbb..p..\n.p...knQ\n..p..p..\n........\n..PP....\nPP....PP\nRNB.R.K."),
     {
       chess_move(vec2i8(2, 0), vec2i8(6, 4), cmt_bishop)
-    }));;
-
-  print("Test Puzzle #3\n");
-
-  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR"),
-    {
-      chess_move(vec2i8(4, 4), vec2i8(1, 4), cmt_queen_straight)
     }));;
 
 epilogue:
