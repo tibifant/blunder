@@ -1084,6 +1084,23 @@ uint64_t lsHash(const micro_starting_board &board)
   return lsHashData(data, sizeof(board));
 }
 
+
+bool micro_board_has(const chess_board &b, const micro_starting_board *pHashBoards)
+{
+  const micro_starting_board board = get_mirco_starting_board(b);
+  const uint64_t hash = lsHash(board);
+
+  for (size_t i = 0; i < 16; i++)
+  {
+    const uint64_t maskedHash = (hash + i) & hashMask;
+
+    if (pHashBoards[maskedHash] == board)
+      return true;
+  }
+
+  return false;
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 constexpr uint8_t SquareWeightFactor = 1;
@@ -1342,6 +1359,8 @@ struct alpha_beta_minimax_cache
 
   chess_hash_board *pCache = nullptr;
 
+  micro_starting_board *pHashBoards = nullptr;
+
   piece_move_map<true> pieceMovesWithNonCapture;
   piece_move_map<false> pieceMoves[2];
   list<chess_move> quiescenceMovesAtLevel[MaxQuiescenceDepth];
@@ -1520,6 +1539,10 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
 
       const chess_board after = perform_move(board, move);
       cache.currentMove[DepthIndex] = move;
+
+      if constexpr (DepthIndex == 0)
+        if (micro_board_has(after, cache.pHashBoards))
+          return moves_with_score<MaxDepth>(move, score_with_depth(100000, DepthIndex));
 
       const moves_with_score<MaxDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, DepthIndex + 1>(after, alpha, beta, cache);
 

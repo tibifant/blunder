@@ -348,9 +348,7 @@ lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards,
       chess_board b = get_board_from_fen(&fileContents);
 
       while (*fileContents != '\n' && *fileContents != '\0')
-      {
         fileContents++;
-      }
 
       if (*fileContents == '\0')
         break;
