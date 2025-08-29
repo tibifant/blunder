@@ -1,5 +1,6 @@
 #include "blunder.h"
 #include "testable.h"
+#include "local_list.h"
 
 #include <conio.h>
 
@@ -117,18 +118,6 @@ concept TFuncIsValid = requires (const decltype(TResultNop) ret, TParam & param,
 
 //////////////////////////////////////////////////////////////////////////
 
-__forceinline bool is_cancel(const lsResult result)
-{
-  return LS_FAILED(result);
-}
-
-__forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_move &move, const chess_board &)
-{
-  return list_add(&moves, move);
-}
-
-//////////////////////////////////////////////////////////////////////////
-
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
 auto add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, TParam &param, [[maybe_unused]] const chess_move_type type)
@@ -178,6 +167,37 @@ inline auto add_repeated_moves(const chess_board &board, const vec2i8 startPos, 
 
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
+inline auto add_potential_promotion(chess_move move, const chess_board &board, TParam &param)
+{
+  auto result = TResultNop;
+
+  if (move.targetY == BoardWidth - 1 || move.targetY == 0)
+  {
+#ifdef _DEBUG
+    move.moveType = cmt_pawn_promotion;
+#endif
+    move.isPromotion = true;
+    move.isPromotedToQueen = true;
+
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+
+    move.isPromotedToQueen = false;
+
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+  }
+  else
+  {
+    if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
+  }
+
+  return result;
+}
+
+template <auto TFunc, auto TResultNop, typename TParam>
+  requires TFuncIsValid<TFunc, TResultNop, TParam>
 inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const vec2i8 startPos)
 {
   auto result = TResultNop;
@@ -196,24 +216,10 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
         return result;
     }
 
-    if (targetPos.y == BoardWidth - 1 || targetPos.y == 0)
-    {
-      chess_move move = chess_move(startPos, targetPos, cmt_pawn_promotion);
-      move.isPromotion = true;
+    chess_move move = chess_move(startPos, targetPos, cmt_pawn);
 
-      move.isPromotedToQueen = true;
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
-        return result;
-
-      move.isPromotedToQueen = false;
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(move, board, param)))
-        return result;
-    }
-    else
-    {
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, targetPos, board, param, cmt_pawn)))
-        return result;
-    }
+    if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
+      return result;
   }
 
   if (diagonalLeftTargetPos.x >= 0 && diagonalLeftTargetPos.y >= 0 && diagonalLeftTargetPos.y < BoardWidth)
@@ -221,8 +227,12 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
     const chess_piece enemyPiece = board[diagonalLeftTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalLeftTargetPos, board, param, cmt_pawn_capture)))
+    {
+      chess_move move = chess_move(startPos, diagonalLeftTargetPos, cmt_pawn_capture);
+
+      if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
         return result;
+    }
   }
 
   if (diagonalRightTargetPos.x < BoardWidth && diagonalRightTargetPos.y >= 0 && diagonalRightTargetPos.y < BoardWidth)
@@ -230,8 +240,12 @@ inline auto get_pawn_moves_from(const chess_board &board, TParam &param, const v
     const chess_piece enemyPiece = board[diagonalRightTargetPos];
 
     if (enemyPiece.piece && (enemyPiece.isWhite != board.isWhitesTurn))
-      if (is_cancel(result = add_valid_move<TFunc, TResultNop, TParam>(startPos, diagonalRightTargetPos, board, param, cmt_pawn_capture)))
+    {
+      chess_move move = chess_move(startPos, diagonalRightTargetPos, cmt_pawn_capture);
+
+      if (is_cancel(result = add_potential_promotion<TFunc, TResultNop, TParam>(move, board, param)))
         return result;
+    }
   }
 
   // en passant
@@ -425,6 +439,20 @@ auto get_all_valid_moves(const chess_board &board, TParam &param)
   return result;
 }
 
+//////////////////////////////////////////////////////////////////////////
+
+__forceinline bool is_cancel(const lsResult result)
+{
+  return LS_FAILED(result);
+}
+
+__forceinline lsResult list_add_adapter(list<chess_move> &moves, const chess_move &move, const chess_board &)
+{
+  return list_add(&moves, move);
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves)
 {
   list_clear(&moves);
@@ -434,31 +462,90 @@ lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves)
 
 //////////////////////////////////////////////////////////////////////////
 
-chess_hash_board chess_hash_board_create(const chess_board &board)
+struct capture_info_chess_move : chess_move
 {
-  chess_hash_board ret;
-  ret.isWhitesTurn = board.isWhitesTurn;
+  chess_piece_type capturingPiece;
+  chess_piece_type capturedPiece;
 
-  for (size_t i = 0; i < 8 * 4; i++)
-  {
-    const chess_piece pa = board.board[i * 2];
-    const chess_piece pb = board.board[i * 2 + 1];
-    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
-    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
-    ret.nibbleMap[i] = a | b;
-  }
+  capture_info_chess_move(const chess_move move, const chess_piece_type capturingPiece, const chess_piece_type capturedPiece) : capturingPiece(capturingPiece), capturedPiece(capturedPiece), chess_move(move) {}
+};
 
-  return ret;
+template <bool HasCptNone>
+struct piece_move_map
+{
+  list<capture_info_chess_move> map[_chess_piece_type_count - (uint8_t)!HasCptNone];
+};
+
+template <bool IsQuiescence>
+lsResult add_capturing_move(piece_move_map<false> &map, const chess_move &move, const chess_board &board)
+{
+  const chess_piece_type capturingPiece = board[vec2i8(move.startX, move.startY)].piece;
+  const chess_piece_type capturedPiece = board[vec2i8(move.targetX, move.targetY)].piece;
+
+  if constexpr (IsQuiescence)
+    if (!capturedPiece)
+      return lsR_Success;
+
+  lsAssert(capturingPiece - 1 <= LS_ARRAYSIZE(map.map));
+  return list_add(map.map[capturingPiece - 1], capture_info_chess_move(move, capturingPiece, capturedPiece));
 }
 
-uint64_t lsHash(const chess_hash_board &board)
+template <bool HasCptNoneIn, bool HasCptNoneTmp>
+lsResult retrieve_ordered_moves(list<chess_move> &out, const piece_move_map<HasCptNoneIn> &in, piece_move_map<HasCptNoneTmp> &tmp)
 {
-  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
-  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
-  v0 = _mm_aesdec_si128(v0, v1);
-  uint64_t ret = _mm_extract_epi64(v0, 0);
-  ret ^= board.isWhitesTurn;
-  return ret;
+  lsResult result = lsR_Success;
+
+  list_clear(&out);
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(tmp.map); i++)
+    list_clear(&tmp.map[i]);
+
+  for (int64_t i = LS_ARRAYSIZE(in.map) - 1; i >= 0; i--)
+    for (const capture_info_chess_move m : in.map[i])
+      LS_ERROR_CHECK(list_add(tmp.map[m.capturedPiece - !HasCptNoneTmp], m));
+
+  // step 1: move capturing pieces
+  for (size_t i = cpT_none + 1; i < LS_ARRAYSIZE(tmp.map); i++) // relies on the chess_pice_types being in the right order
+    for (const capture_info_chess_move m : tmp.map[i - !HasCptNoneTmp])
+      LS_ERROR_CHECK(list_add<chess_move>(out, m));
+
+  // step 2: if there could be non-capturing moves: put them last.
+  if constexpr (HasCptNoneTmp)
+    for (const capture_info_chess_move m : tmp.map[cpT_none])
+      LS_ERROR_CHECK(list_add<chess_move>(out, m));
+
+epilogue:
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+lsResult get_valid_quiescence_moves(list<chess_move> &out, const chess_board &board, piece_move_map<false> &in, piece_move_map<false> &tmp)
+{
+  lsResult result = lsR_Success;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(in.map); i++)
+    list_clear(&in.map[i]);
+
+  LS_ERROR_CHECK((get_all_valid_moves<add_capturing_move<true>, lsR_Success, piece_move_map<false>>(board, in)));
+  LS_ERROR_CHECK(retrieve_ordered_moves(out, in, tmp));
+
+epilogue:
+  return result;
+}
+
+lsResult get_all_valid_ordered_moves(list<chess_move> &out, const chess_board &board, piece_move_map<false> &in, piece_move_map<true> &tmp)
+{
+  lsResult result = lsR_Success;
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(in.map); i++)
+    list_clear(&in.map[i]);
+
+  LS_ERROR_CHECK((get_all_valid_moves<add_capturing_move<false>, lsR_Success, piece_move_map<false>>(board, in)));
+  LS_ERROR_CHECK(retrieve_ordered_moves(out, in, tmp));
+
+epilogue:
+  return result;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -509,6 +596,16 @@ chess_board perform_move(const chess_board &board, const chess_move move)
       assert_move_type(move, cmt_pawn_double_step, board);
       origin.lastWasDoubleStep = true;
     }
+    else if (move.isPromotion)
+    {
+      assert_move_type(move, cmt_pawn_promotion, board);
+      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
+
+      if (move.isPromotedToQueen)
+        origin.piece = cpT_queen;
+      else
+        origin.piece = cpT_knight;
+    }
     else if (move.startX != move.targetX)
     {
       if (target.piece)
@@ -523,16 +620,6 @@ chess_board perform_move(const chess_board &board, const chess_move move)
         lsAssert(board[enemyPos].piece && board[enemyPos].lastWasDoubleStep && board[enemyPos].piece == cpT_pawn && (board[enemyPos].isWhite == ret.isWhitesTurn));
         ret[enemyPos].piece = cpT_none;
       }
-    }
-    else if (move.isPromotion)
-    {
-      assert_move_type(move, cmt_pawn_promotion, board);
-      lsAssert((board.isWhitesTurn && move.targetY == BoardWidth - 1) || (!board.isWhitesTurn && move.targetY == 0));
-
-      if (move.isPromotedToQueen)
-        origin.piece = cpT_queen;
-      else
-        origin.piece = cpT_knight;
     }
     else
     {
@@ -591,6 +678,219 @@ chess_board perform_move(const chess_board &board, const chess_move move)
 
 //////////////////////////////////////////////////////////////////////////
 
+bool is_upper_case(const char c)
+{
+  return 'A' <= c && c <= 'Z';
+}
+
+chess_board get_board_from_starting_position(const char *startingPosition)
+{
+  chess_board ret;
+
+  vec2i8 currentPos = vec2i8(0, 7);
+  size_t i = (size_t)(-1);
+
+  while (true)
+  {
+    i++;
+
+    chess_piece_type piece = cpT_none;
+    bool isWhite = false;
+
+    switch (startingPosition[i])
+    {
+    case '.':
+    case ' ':
+      piece = cpT_none;
+      break;
+
+    case 'K':
+    case 'k':
+      piece = cpT_king;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'Q':
+    case 'q':
+      piece = cpT_queen;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'N':
+    case 'n':
+      piece = cpT_knight;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'B':
+    case 'b':
+      piece = cpT_bishop;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'R':
+    case 'r':
+      piece = cpT_rook;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case 'P':
+    case 'p':
+      piece = cpT_pawn;
+      isWhite = is_upper_case(startingPosition[i]);
+      break;
+
+    case '\r':
+      continue;
+
+    case '\n':
+      currentPos.x = 0;
+      currentPos.y--;
+      continue;
+
+    default:
+      print_error_line("Unexpected Token in stream: ", startingPosition[i]);
+      lsFail();
+    }
+
+    lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
+
+    ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
+    currentPos.x++;
+
+    if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
+      break;
+  }
+
+  const chess_board startBoard = chess_board::get_starting_point();
+
+  for (size_t j = 0; j < LS_ARRAYSIZE(startBoard.board); j++)
+    if (ret.board[j].piece != startBoard.board[j].piece)
+      ret.board[j].hasMoved = true;
+
+  return ret;
+}
+
+chess_board get_board_from_fen(const char *fenString)
+{
+  return get_board_from_fen(&fenString);
+}
+
+chess_board get_board_from_fen(const char **pFenString)
+{
+  chess_board ret;
+
+  const char *fenString = *pFenString;
+
+  vec2i8 currentPos = vec2i8(0, 7);
+  size_t i = (size_t)(-1);
+
+  while (true)
+  {
+    i++;
+
+    chess_piece_type piece = cpT_none;
+    bool isWhite = false;
+
+    switch (fenString[i])
+    {
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    {
+      const uint8_t count = fenString[i] - '0';
+      lsAssert(currentPos.x + count - 1 < BoardWidth);
+
+      for (size_t j = 0; j < count; j++)
+      {
+        ret[currentPos] = chess_piece(cpT_none, false);
+        currentPos.x++;
+      }
+
+      if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
+        goto on_board_parsed;
+      else
+        continue;
+    }
+
+    case 'K':
+    case 'k':
+      piece = cpT_king;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'Q':
+    case 'q':
+      piece = cpT_queen;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'N':
+    case 'n':
+      piece = cpT_knight;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'B':
+    case 'b':
+      piece = cpT_bishop;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'R':
+    case 'r':
+      piece = cpT_rook;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case 'P':
+    case 'p':
+      piece = cpT_pawn;
+      isWhite = is_upper_case(fenString[i]);
+      break;
+
+    case '/':
+      currentPos.x = 0;
+      currentPos.y--;
+      continue;
+
+    default:
+      print_error_line("Unexpected Token in stream: ", fenString[i]);
+      lsFail();
+    }
+
+    lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
+
+    ret[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
+    currentPos.x++;
+
+    if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
+      break;
+  }
+
+on_board_parsed:
+  i++;
+  lsAssert(fenString[i] == ' ');
+
+  i++;
+  ret.isWhitesTurn = fenString[i] == 'w';
+
+  const chess_board startBoard = chess_board::get_starting_point();
+
+  for (size_t j = 0; j < LS_ARRAYSIZE(startBoard.board); j++)
+    if (ret.board[j].piece != startBoard.board[j].piece)
+      ret.board[j].hasMoved = true;
+
+  *pFenString = fenString + i;
+
+  return ret;
+}
+
 inline void place_symmetric_last_row(chess_board &board, const chess_piece_type piece, const int8_t x)
 {
   board[vec2i8(x, 0)] = chess_piece(piece, true);
@@ -614,6 +914,174 @@ chess_board chess_board::get_starting_point()
   }
 
   return board;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+chess_hash_board chess_hash_board_create(const chess_board &board)
+{
+  chess_hash_board ret;
+  ret.isWhitesTurn = board.isWhitesTurn;
+
+  for (size_t i = 0; i < 8 * 4; i++)
+  {
+    const chess_piece pa = board.board[i * 2];
+    const chess_piece pb = board.board[i * 2 + 1];
+    const uint8_t a = ((pa.piece & 7) | (pa.isWhite << 3));
+    const uint8_t b = (((pb.piece & 7) << 4) | (pb.isWhite << 7));
+    ret.nibbleMap[i] = a | b;
+  }
+
+  return ret;
+}
+
+uint64_t lsHash(const chess_hash_board &board)
+{
+  __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap));
+  __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(board.nibbleMap) + 1);
+  v0 = _mm_aesdec_si128(v0, v1);
+  uint64_t ret = _mm_extract_epi64(v0, 0);
+  ret ^= board.isWhitesTurn;
+  return ret;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+struct micro_board_write_state
+{
+  uint8_t *pNext = nullptr;
+  uint16_t state = 0;
+  uint8_t stateBits = 0;
+
+  micro_board_write_state(uint8_t *pNext) : pNext(pNext) {}
+};
+
+void micro_board_write_state_append(micro_board_write_state &state, const uint8_t pos)
+{
+  lsAssert(pos < 64);
+  constexpr uint8_t bits = 6;
+  static_assert(1 << bits == 64);
+
+  state.state <<= bits; // *= 64
+  state.state += pos;
+  state.stateBits += bits;
+
+  if (state.stateBits >= 8)
+  {
+    *state.pNext = (uint8_t)state.state;
+    state.pNext++;
+    state.state >>= 8;
+    state.stateBits -= 8;
+  }
+}
+
+void micro_board_write_state_flush(micro_board_write_state &state)
+{
+  *state.pNext = (uint8_t)state.state;
+  state.pNext++;
+  state.stateBits = 0;
+}
+
+uint8_t micro_board_add_pieces(const chess_board &board, const chess_piece piece, micro_board_write_state &state)
+{
+  uint8_t found = 0;
+
+  for (uint8_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
+  {
+    if (board.board[i] == piece)
+    {
+      micro_board_write_state_append(state, i);
+      found++;
+    }
+  }
+
+  return found;
+}
+
+micro_starting_board get_mirco_starting_board(const chess_board &board)
+{
+  micro_starting_board ret;
+  micro_board_write_state state(ret.vals);
+
+  ret.whitePawns = micro_board_add_pieces(board, chess_piece(cpT_pawn, true), state);
+  ret.blackPawns = micro_board_add_pieces(board, chess_piece(cpT_pawn, false), state);
+
+  ret.whiteKnights = micro_board_add_pieces(board, chess_piece(cpT_knight, true), state);
+  ret.blackKnights = micro_board_add_pieces(board, chess_piece(cpT_knight, false), state);
+
+  ret.whiteBishops = micro_board_add_pieces(board, chess_piece(cpT_bishop, true), state);
+  ret.blackBishops = micro_board_add_pieces(board, chess_piece(cpT_bishop, false), state);
+
+  ret.whiteRooks = micro_board_add_pieces(board, chess_piece(cpT_rook, true), state);
+  ret.blackRooks = micro_board_add_pieces(board, chess_piece(cpT_rook, false), state);
+
+  ret.whiteQueen = micro_board_add_pieces(board, chess_piece(cpT_queen, true), state);
+  ret.blackQueen = micro_board_add_pieces(board, chess_piece(cpT_queen, false), state);
+
+  // there is one, or the game is over...
+  micro_board_add_pieces(board, chess_piece(cpT_king, true), state);
+  micro_board_add_pieces(board, chess_piece(cpT_king, false), state);
+
+  micro_board_write_state_flush(state);
+  return ret;
+}
+
+inline void hash_state_consume(uint64_t &state, const uint32_t val)
+{
+  state = state * 6364136223846793005ULL + (val | 0x100000000);
+}
+
+uint64_t lsHashData(const void *pData, const size_t size)
+{
+  constexpr uint64_t seed = 0x12CA7F00D511;
+
+  const uint64_t m = 0xC6A4A7935BD1E995LLU;
+  const int r = 47;
+
+  uint64_t h = seed ^ (size * m);
+
+  const uint64_t *pData64 = reinterpret_cast<const uint64_t *>(pData);
+  const uint64_t *pEnd64 = pData64 + (size / 8);
+
+  while (pData64 != pEnd64)
+  {
+    uint64_t k = *pData64++;
+
+    k *= m;
+    k ^= k >> r;
+    k *= m;
+
+    h ^= k;
+    h *= m;
+  }
+
+  const uint8_t *pData8 = reinterpret_cast<const uint8_t *>(pData64);
+
+  switch (size & 7)
+  {
+  case 7: h ^= (uint64_t)(pData8[6]) << 48;
+  case 6: h ^= (uint64_t)(pData8[5]) << 40;
+  case 5: h ^= (uint64_t)(pData8[4]) << 32;
+  case 4: h ^= (uint64_t)(pData8[3]) << 24;
+  case 3: h ^= (uint64_t)(pData8[2]) << 16;
+  case 2: h ^= (uint64_t)(pData8[1]) << 8;
+  case 1: h ^= (uint64_t)(pData8[0]);
+    h *= m;
+    break;
+  };
+
+  h ^= h >> r;
+  h *= m;
+  h ^= h >> r;
+
+  return h;
+}
+
+uint64_t lsHash(const micro_starting_board &board)
+{
+  LS_ALIGN(8) uint8_t data[sizeof(board)];
+  memcpy(data, &board, sizeof(board));
+  return lsHashData(data, sizeof(board));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -714,10 +1182,10 @@ static const square_weights SquareWeights[] = {
 
 static_assert(LS_ARRAYSIZE(SquareWeights) == _chess_piece_type_count);
 
+constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
+
 int64_t evaluate_chess_board(const chess_board &board)
 {
-  constexpr int64_t PieceScores[] = { 0, 100000, 950, 563, 333, 305, 100 }; // Chess piece values from `https://en.wikipedia.org/wiki/Chess_piece_relative_value#Alternative_valuations > AlphaZero`.
-
   int64_t ret = 0;
 
   for (size_t i = 0; i < LS_ARRAYSIZE(board.board); i++)
@@ -743,6 +1211,8 @@ int64_t evaluate_chess_board(const chess_board &board)
 
   return ret;
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 struct move_with_score
 {
@@ -790,14 +1260,55 @@ move_with_score minimax_step(const chess_board &board)
   }
 }
 
+//////////////////////////////////////////////////////////////////////////
+
+struct score_with_depth
+{
+  int64_t score;
+  size_t depth;
+
+  bool operator<(const score_with_depth other) const
+  {
+    if (score == other.score)
+      return depth < other.depth;
+    else
+      return score < other.score;
+  }
+
+  bool operator<=(const score_with_depth other) const
+  {
+    if (score == other.score)
+      return depth <= other.depth;
+    else
+      return score <= other.score;
+  }
+
+  bool operator>(const score_with_depth other) const
+  {
+    if (score == other.score)
+      return depth < other.depth;
+    else
+      return score > other.score;
+  }
+
+  bool operator>=(const score_with_depth other) const
+  {
+    if (score == other.score)
+      return depth <= other.depth;
+    else
+      return score >= other.score;
+  }
+};
+
+
 template <size_t MaxDepth>
 struct moves_with_score
 {
   chess_move moves[MaxDepth];
-  int64_t score;
+  score_with_depth score;
 
   moves_with_score() = default;
-  moves_with_score(const chess_move moves[MaxDepth], const int64_t score) : score(score)
+  moves_with_score(const chess_move moves[MaxDepth], const score_with_depth score) : score(score)
   {
     lsMemcpy(this->moves, moves, LS_ARRAYSIZE(this->moves));
   }
@@ -808,18 +1319,21 @@ constexpr bool UseCache = false;
 template <size_t MaxDepth>
 struct alpha_beta_minimax_cache
 {
+  static constexpr size_t MaxQuiescenceDepth = 20;
+
   list<chess_move> movesAtLevel[MaxDepth];
-  chess_move currentMove[MaxDepth];
+  chess_move currentMove[MaxDepth + MaxQuiescenceDepth];
 #ifdef _DEBUG
   size_t nodesVisited = 0;
+  size_t quiescenceNodesVisited = 0;
   size_t duplicatesRejected = 0;
   chess_move highestMove[MaxDepth];
   chess_move lowestMove[MaxDepth];
-  int64_t lowestScore = lsMaxValue<int64_t>();
-  int64_t highestScore = lsMinValue<int64_t>();
+  score_with_depth lowestScore = score_with_depth(lsMaxValue<int64_t>(), MaxDepth + MaxQuiescenceDepth);
+  score_with_depth highestScore = score_with_depth(lsMinValue<int64_t>(), MaxDepth + MaxQuiescenceDepth);
 
-  int64_t stepMin[MaxDepth];
-  int64_t stepMax[MaxDepth];
+  score_with_depth stepMin[MaxDepth];
+  score_with_depth stepMax[MaxDepth];
 #endif
 
   constexpr static size_t hashBits = 20;
@@ -828,13 +1342,19 @@ struct alpha_beta_minimax_cache
 
   chess_hash_board *pCache = nullptr;
 
+  piece_move_map<true> pieceMovesWithNonCapture;
+  piece_move_map<false> pieceMoves[2];
+  list<chess_move> quiescenceMovesAtLevel[MaxQuiescenceDepth];
+
+  int64_t ticksPerLayer[MaxDepth + 1] = {};
+
   alpha_beta_minimax_cache()
   {
 #ifdef _DEBUG
     for (size_t i = 0; i < MaxDepth; i++)
     {
-      stepMin[i] = lsMaxValue<int64_t>();
-      stepMax[i] = lsMinValue<int64_t>();
+      stepMin[i] = score_with_depth(lsMaxValue<int64_t>(), MaxDepth + MaxQuiescenceDepth);
+      stepMax[i] = score_with_depth(lsMinValue<int64_t>(), MaxDepth + MaxQuiescenceDepth);
     }
 #endif
   }
@@ -868,19 +1388,101 @@ bool alpha_beta_minimax_cache_find(const alpha_beta_minimax_cache<MaxDepth> &cac
 template <size_t MaxDepth>
 void alpha_beta_minimax_cache_store(alpha_beta_minimax_cache<MaxDepth> &cache, chess_hash_board &board, const uint64_t hash, const move_with_score ret)
 {
-  board.score = (int32_t)ret.score;
+  board.score = (int32_t)ret.score; // Needs to be set to score_with_depth if used again
   board.move = ret.move;
   cache.pCache[hash] = std::move(board);
 }
 
+//////////////////////////////////////////////////////////////////////////
+
+template <bool FindMin, size_t CacheDepth, size_t MaxDepth = alpha_beta_minimax_cache<CacheDepth>::MaxQuiescenceDepth>
+score_with_depth quiescence_alpha_beta_step(const chess_board &board, score_with_depth alpha, score_with_depth beta, alpha_beta_minimax_cache<CacheDepth> &cache, const size_t depthIndex = 0)
+{
+  const size_t OverallDepthIndex = CacheDepth + depthIndex;
+
+  if (board.hasBlackWon)
+    return score_with_depth(-PieceScores[cpT_king] / 2, OverallDepthIndex); // We don't want to return the full checkmated score as there may be a better move that is not found by quiescence
+  else if (board.hasWhiteWon)
+    return score_with_depth(PieceScores[cpT_king] / 2, OverallDepthIndex); // We don't want to return the full checkmated score as there may be a better move that is not found by quiescence
+  else if (depthIndex == MaxDepth)
+    return score_with_depth(evaluate_chess_board(board), OverallDepthIndex);
+
+  list<chess_move> &moves = cache.quiescenceMovesAtLevel[depthIndex];
+  LS_DEBUG_ERROR_ASSERT(get_valid_quiescence_moves(moves, board, cache.pieceMoves[0], cache.pieceMoves[1]));
+
+  if (!moves.count)
+    return score_with_depth(evaluate_chess_board(board), OverallDepthIndex);
+
+  score_with_depth score = FindMin ? score_with_depth(lsMaxValue<int64_t>(), CacheDepth + MaxDepth) : score_with_depth(lsMinValue<int64_t>(), CacheDepth + MaxDepth);
+
+  for (const chess_move move : moves)
+  {
+#ifdef _DEBUG
+    cache.quiescenceNodesVisited++;
+#endif
+
+    const chess_board after = perform_move(board, move);
+    cache.currentMove[CacheDepth + depthIndex] = move;
+
+    const score_with_depth moveScore = quiescence_alpha_beta_step<!FindMin, CacheDepth, MaxDepth>(after, alpha, beta, cache, depthIndex + 1);
+
+    if constexpr (FindMin)
+    {
+      if (moveScore < score)
+      {
+        score = moveScore;
+
+        if (score < beta)
+          beta = score;
+
+        if (score <= alpha)
+          break;
+      }
+    }
+    else
+    {
+      if (moveScore > score)
+      {
+        score = moveScore;
+
+        if (score > alpha)
+          alpha = score;
+
+        if (score >= beta)
+          break;
+      }
+    }
+  }
+
+  return score;
+}
+
+constexpr bool UseQuiescenceSearch = true;
+
 template <bool FindMin, size_t MaxDepth, size_t DepthIndex = 0>
-moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alpha, int64_t beta, alpha_beta_minimax_cache<MaxDepth> &cache)
+moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_depth alpha, score_with_depth beta, alpha_beta_minimax_cache<MaxDepth> &cache)
 {
   static_assert(DepthIndex <= MaxDepth);
 
+  if constexpr (FindMin)
+    if (board.hasWhiteWon)
+      return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(PieceScores[cpT_king], DepthIndex));
+
+  if constexpr (!FindMin)
+    if (board.hasBlackWon)
+      return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(-PieceScores[cpT_king], DepthIndex));
+
   if constexpr (DepthIndex == MaxDepth)
   {
-    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, evaluate_chess_board(board));
+    score_with_depth score;
+    const int64_t begin = __rdtsc();
+
+    if constexpr (UseQuiescenceSearch)
+      score = quiescence_alpha_beta_step<!FindMin>(board, alpha, beta, cache);
+    else
+      score = score_with_depth(evaluate_chess_board(board), DepthIndex);
+
+    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, score);
 
 #ifdef _DEBUG
     if (ret.score > cache.highestScore)
@@ -896,16 +1498,19 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
     }
 #endif
 
+    const int64_t end = __rdtsc();
+    cache.ticksPerLayer[DepthIndex] += end - begin;
+
     return ret;
   }
   else
   {
-    list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
-    list_clear(&moves);
+    const int64_t begin = __rdtsc();
 
-    LS_DEBUG_ERROR_ASSERT(get_all_valid_moves(board, moves));
+    list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
+    LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNonCapture));
     moves_with_score<MaxDepth> ret;
-    ret.score = FindMin ? lsMaxValue<int64_t>() : lsMinValue<int64_t>();
+    ret.score = FindMin ? score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth) : score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth);
 
     for (const chess_move move : moves)
     {
@@ -951,9 +1556,14 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, int64_t alp
       }
     }
 
+    const int64_t end = __rdtsc();
+    cache.ticksPerLayer[DepthIndex] += end - begin;
+
     return ret;
   }
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 constexpr size_t DefaultMinimaxDepth = 4;
 
@@ -972,7 +1582,7 @@ chess_move get_minimax_move_black(const chess_board &board)
 template <bool IsWhite>
 chess_move get_alpha_beta_move(const chess_board &board)
 {
-  constexpr size_t Depth = 5;
+  constexpr size_t Depth = 6;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
@@ -981,14 +1591,14 @@ chess_move get_alpha_beta_move(const chess_board &board)
   alpha_beta_minimax_cache<Depth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
 
-  const moves_with_score<Depth> moveInfo = alpha_beta_step<!IsWhite>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+  const moves_with_score<Depth> moveInfo = alpha_beta_step<!IsWhite>(board, score_with_depth(lsMinValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), cache);
 
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
 
-  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
+  print(FU(Group)(cache.nodesVisited), " + ", FU(Group)(cache.quiescenceNodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)((cache.nodesVisited + cache.quiescenceNodesVisited) / ((after - before) * 1e-9f)), "/s)\n");
 
-  print("\nBest Moves (rating: ", moveInfo.score, "):\n");
+  print("\nBest Moves (rating: ", moveInfo.score.score, " at depth: ", moveInfo.score.depth, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -996,7 +1606,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
     print(", ");
   }
 
-  print("\nBest move combination for white (rating: ", cache.highestScore, "):\n");
+  print("\nBest move combination for white (rating: ", cache.highestScore.score, " at depth: ", cache.highestScore.depth, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -1004,7 +1614,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
     print(", ");
   }
 
-  print("\nBest move combination for black (rating: ", cache.lowestScore, "):\n");
+  print("\nBest move combination for black (rating: ", cache.lowestScore.score, " at depth: ", cache.lowestScore.depth, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -1015,10 +1625,22 @@ chess_move get_alpha_beta_move(const chess_board &board)
   print("\nRating Distribution:\n");
 
   for (size_t i = 0; i < Depth; i++)
-    print(cache.stepMin[i], " ~ ", cache.stepMax[i], ", ");
+    print(cache.stepMin[i].score, " ~ ", cache.stepMax[i].score, ", ");
 
   print('\n');
 #endif
+
+  print("\nTotal ticks: 100% (", FI(Group)(cache.ticksPerLayer[0]), ")\n");
+
+  for (size_t i = 0; i < LS_ARRAYSIZE(cache.ticksPerLayer) - 1; i++)
+  {
+    const int64_t ticks = cache.ticksPerLayer[i] - cache.ticksPerLayer[i + 1];
+    print("Layer ", i, ": ", FF(Min(8), Max(8))((ticks * 100.f) / cache.ticksPerLayer[0]), "% (", FI(Group)(ticks), ")\n");
+  }
+
+  print("Layer ", Depth, ": ", FF(Min(8), Max(8))((cache.ticksPerLayer[Depth] * 100.f) / cache.ticksPerLayer[0]), "% (", FI(Group)(cache.ticksPerLayer[Depth]), ")\n");
+
+  print('\n');
 
   return moveInfo.moves[0];
 }
@@ -1036,22 +1658,22 @@ chess_move get_alpha_beta_move_black(const chess_board &board)
 //////////////////////////////////////////////////////////////////////////
 
 template <size_t Depth, size_t MaxDepth, bool FindMin>
-moves_with_score<MaxDepth> alpha_beta_aspiration(const chess_board &board, const int64_t guess, alpha_beta_minimax_cache<MaxDepth> &cache)
+moves_with_score<MaxDepth> alpha_beta_aspiration(const chess_board &board, const score_with_depth guess, alpha_beta_minimax_cache<MaxDepth> &cache)
 {
   constexpr int64_t delta = 50;
-  const int64_t alpha = guess - delta;
-  const int64_t beta = guess + delta;
+  const score_with_depth alpha = score_with_depth(guess.score - delta, guess.depth);
+  const score_with_depth beta = score_with_depth(guess.score + delta, guess.depth);
 
   moves_with_score<MaxDepth> ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, beta, cache);
 
-  print("\taspiration: ", Depth, " / ", MaxDepth, ": ", ret.score, " (", alpha, " ~ ", beta, ")");
+  print("\taspiration: ", Depth, " / ", MaxDepth, ": ", ret.score.score, " (", alpha.score, " ~ ", beta.score, ")");
 
   if (ret.score <= alpha)
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, lsMinValue<int64_t>(), beta, cache);
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), beta, cache);
   else if (ret.score >= beta)
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, lsMaxValue<int64_t>(), cache);
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), cache);
 
-  print(" => ", ret.score, '\n');
+  print(" => ", ret.score.score, '\n');
 
   return ret;
 }
@@ -1063,21 +1685,29 @@ void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_ca
 
   if constexpr (Depth == 1)
   {
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, lsMinValue<int64_t>(), lsMaxValue<int64_t>(), cache);
+    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), cache);
 
-    print("\titerative deepen: ", Depth, " / ", MaxDepth, ": ", ret.score, '\n');
+    print("\titerative deepen: ", Depth, " / ", MaxDepth, ": ", ret.score.score, '\n');
 
     if constexpr (MaxDepth > Depth)
       alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
   }
   else
   {
+    if (lsAbs(ret.score.score) >= PieceScores[cpT_king] && ret.score.depth <= Depth)
+    {
+      lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
+      return;
+    }
+
     ret = alpha_beta_aspiration<Depth, MaxDepth, FindMin>(board, ret.score, cache);
 
     if constexpr (MaxDepth > Depth)
       alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
   }
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 template <bool IsWhite>
 chess_move get_complex_move(const chess_board &board)
@@ -1097,9 +1727,9 @@ chess_move get_complex_move(const chess_board &board)
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
 
-  print(FU(Group)(cache.nodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)(cache.nodesVisited / ((after - before) * 1e-9f)), "/s)\n");
+  print(FU(Group)(cache.nodesVisited), " + ", FU(Group)(cache.quiescenceNodesVisited), " nodes visited (in ", FF(Max(5))((after - before) * 1e-9f), "s, ", FF(Max(9), Group)((cache.nodesVisited + cache.quiescenceNodesVisited) / ((after - before) * 1e-9f)), "/s)\n");
 
-  print("\nBest Moves (rating: ", moveInfo.score, "):\n");
+  print("\nBest Moves (rating: ", moveInfo.score.score, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -1107,7 +1737,7 @@ chess_move get_complex_move(const chess_board &board)
     print(", ");
   }
 
-  print("\nBest move combination for white (rating: ", cache.highestScore, "):\n");
+  print("\nBest move combination for white (rating: ", cache.highestScore.score, " at depth: ", cache.highestScore.depth, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -1115,7 +1745,7 @@ chess_move get_complex_move(const chess_board &board)
     print(", ");
   }
 
-  print("\nBest move combination for black (rating: ", cache.lowestScore, "):\n");
+  print("\nBest move combination for black (rating: ", cache.lowestScore.score, " at depth: ", cache.lowestScore.depth, "):\n");
 
   for (size_t i = 0; i < Depth; i++)
   {
@@ -1126,7 +1756,7 @@ chess_move get_complex_move(const chess_board &board)
   print("\nRating Distribution:\n");
 
   for (size_t i = 0; i < Depth; i++)
-    print(cache.stepMin[i], " ~ ", cache.stepMax[i], ", ");
+    print(cache.stepMin[i].score, " ~ ", cache.stepMax[i].score, ", ");
 
   print('\n');
 #endif
@@ -1224,6 +1854,117 @@ DEFINE_TESTABLE(pawn_double_step_test)
   TESTABLE_ASSERT_FALSE(!!board[vec2i8(0, 3)].lastWasDoubleStep);
 
   goto epilogue;
+epilogue:
+  return result;
+}
+
+bool replay_move_sequence(const chess_board startPosition, const std::initializer_list<chess_move> &moves)
+{
+  bool isBotTurn = true;
+  chess_board board = startPosition;
+
+  print_board(board);
+
+  for (const chess_move move : moves)
+  {
+    if (isBotTurn)
+    {
+      chess_move m;
+      if (board.isWhitesTurn)
+        m = get_complex_move_white(board);
+      else
+        m = get_complex_move_black(board);
+
+      print("Bot Turn: Chose Move: ");
+      print_move(m);
+      print(" | Expected: ");
+      print_move(move);
+      print("\n");
+
+      if (m != move)
+        return false;
+    }
+
+    board = perform_move(board, move);
+
+    print_board(board);
+
+    isBotTurn = !isBotTurn;
+  }
+
+  return true;
+}
+
+DEFINE_TESTABLE(midgame_puzzle_test)
+{
+  lsResult result = lsR_Success;
+
+  print("Test Puzzle #1\n");
+
+  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r..q.b.r\n..p.kpp.\nppQp.n..\n...PP.p.\n........\n........\nPPP...PP\nRN...RK."),
+    {
+      chess_move(vec2i8(4, 4), vec2i8(5, 5), cmt_pawn_capture),
+      chess_move(vec2i8(6, 6), vec2i8(5, 5), cmt_pawn_capture),
+      chess_move(vec2i8(5, 0), vec2i8(4, 0), cmt_rook),
+    }));;
+
+  print("Test Puzzle #2\n");
+
+  TESTABLE_ASSERT_TRUE(replay_move_sequence(get_board_from_starting_position("r.q..r..\npbb..p..\n.p...knQ\n..p..p..\n........\n..PP....\nPP....PP\nRNB.R.K."),
+    {
+      chess_move(vec2i8(2, 0), vec2i8(6, 4), cmt_bishop)
+    }));;
+
+epilogue:
+  return result;
+}
+
+DEFINE_TESTABLE(fen_parsing_test)
+{
+  lsResult result = lsR_Success;
+
+  const chess_board s = get_board_from_starting_position("r...kb.r\nppp.pppp\nn....n..\n....Q...\n.....B..\n..N.KP..\nPPP...qP\n...R..NR");
+  const chess_board f = get_board_from_fen("r3kb1r/ppp1pppp/n4n2/4Q3/5B2/2N1KP2/PPP3qP/3R2NR w");
+  const chess_board s2 = get_board_from_starting_position("rnbqk.nr\npppp.ppp\n........\n....p...\n....PP..\n..N.....\nPPPP..PP\nR.BQKBR.");
+  const chess_board f2 = get_board_from_fen("rnbqk1nr/pppp1ppp/8/4p3/4PP2/2N5/PPPP2PP/R1BQKBR1 b");
+
+  print_board(s);
+  print_board(f);
+  print_board(f2);
+
+  for (int8_t y = 0; y < BoardWidth; y++)
+  {
+    for (int8_t x = 0; x < BoardWidth; x++)
+    {
+      const vec2i8 pos = vec2i8(x, y);
+      TESTABLE_ASSERT_EQUAL(s[pos], f[pos]);
+    }
+  }
+
+  TESTABLE_ASSERT_EQUAL((bool)f.isWhitesTurn, true);
+
+epilogue:
+  return result;
+}
+
+DEFINE_TESTABLE(score_with_depth_operator_test)
+{
+  lsResult result = lsR_Success;
+
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) < score_with_depth(1, 2));
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) < score_with_depth(2, 1));
+
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(1, 2));
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(1, 1));
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) <= score_with_depth(2, 1));
+
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) > score_with_depth(1, 2));
+  TESTABLE_ASSERT_TRUE(score_with_depth(2, 1) > score_with_depth(1, 2));
+
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) >= score_with_depth(1, 2));
+  TESTABLE_ASSERT_TRUE(score_with_depth(1, 1) >= score_with_depth(1, 1));
+  TESTABLE_ASSERT_TRUE(score_with_depth(2, 1) >= score_with_depth(1, 1));
+
 epilogue:
   return result;
 }

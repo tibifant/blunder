@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 
 #include "core.h"
 #include "list.h"
@@ -8,6 +7,7 @@ enum chess_piece_type : uint8_t
 {
   cpT_none, // `none` has to always be 0 for easy checks.
 
+  // order of the types is in decreasing piece value
   cpT_king,
   cpT_queen,
   cpT_rook,
@@ -58,6 +58,8 @@ struct chess_piece
 
 static_assert(sizeof(chess_piece) == sizeof(uint8_t));
 
+//////////////////////////////////////////////////////////////////////////
+
 constexpr size_t BoardWidth = 8;
 
 struct chess_board
@@ -91,6 +93,12 @@ struct chess_board
   static chess_board get_starting_point();
 };
 
+chess_board get_board_from_starting_position(const char *startingPosition);
+chess_board get_board_from_fen(const char *fenString);
+chess_board get_board_from_fen(const char **pFenString);
+
+//////////////////////////////////////////////////////////////////////////
+
 enum chess_move_type : uint8_t
 {
   cmt_invalid,
@@ -116,7 +124,7 @@ struct chess_move
   uint8_t targetY : 3;
 
   uint8_t isPromotion : 1 = false;
-  uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alligment issues.
+  uint8_t isPromotedToQueen : 1 = false; // other option is knight. Needed so we don't have to include all other pieces because of weird alignment issues.
 
 #ifdef _DEBUG
   chess_move_type moveType = cmt_invalid; // only for asserting!
@@ -140,11 +148,21 @@ struct chess_move
     lsAssert(start.x >= 0 && start.x < BoardWidth && start.y >= 0 && start.y < BoardWidth);
     lsAssert(target.x >= 0 && target.x < BoardWidth && target.y >= 0 && target.y < BoardWidth);
   }
+
+  bool operator ==(const chess_move other)
+  {
+    return startX == other.startX && startY == other.startY && targetX == other.targetX && targetY == other.targetY && isPromotion == other.isPromotion && (!isPromotion || (isPromotedToQueen == other.isPromotedToQueen));
+  }
 };
 
 #ifndef _DEBUG
 static_assert(sizeof(chess_move) == sizeof(uint16_t));
 #endif
+
+lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
+chess_board perform_move(const chess_board &board, const chess_move move);
+
+//////////////////////////////////////////////////////////////////////////
 
 struct chess_hash_board
 {
@@ -159,18 +177,51 @@ struct chess_hash_board
   }
 };
 
+chess_hash_board chess_hash_board_create(const chess_board &board);
+uint64_t lsHash(const chess_hash_board &board);
+
 static_assert(_chess_piece_type_count <= (1 << 3));
 
 #ifndef _DEBUG
 static_assert(sizeof(chess_hash_board) == 8 * 8 / 2 + 4 + 4);
 #endif
 
-chess_hash_board chess_hash_board_create(const chess_board &board);
-uint64_t lsHash(const chess_hash_board &board);
+// this structure assumes that no promotions can have taken place and that both kings still exist (duh!)
+struct micro_starting_board
+{
+  uint8_t whitePawns : 4 = 0; // [0 ~ 8]
+  uint8_t blackPawns : 4 = 0; // [0 ~ 8]
+  uint8_t whiteQueen : 1 = 0; // [0 ~ 1]
+  uint8_t blackQueen : 1 = 0; // [0 ~ 1]
+  // using 6*2 bits to represent 3^6 states (~9.5 bits) is technically wasteful, but doesn't actually result in waste here, as we're still below the 16 bits that the padded integers would result in
+  uint8_t whiteKnights : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackKnights : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t whiteBishops : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackBishops : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t whiteRooks : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t blackRooks : 2 = 0; // [0 ~ 2] -> 2 bit
+  uint8_t isWhitesTurn : 1 = false;
+  uint8_t _unused : 1 = 0;
+  uint8_t vals[192 / 8] = {}; // 192 bit
 
-lsResult get_all_valid_moves(const chess_board &board, list<chess_move> &moves);
+  bool operator ==(const micro_starting_board &other)
+  {
+    return memcmp(this, &other, sizeof(*this)) == 0;
+  }
 
-chess_board perform_move(const chess_board &board, const chess_move move);
+  bool is_empty()
+  {
+    static const micro_starting_board empty;
+    return *this == empty;
+  }
+};
+
+uint64_t lsHash(const micro_starting_board &board);
+micro_starting_board get_mirco_starting_board(const chess_board &board);
+uint64_t lsHash(const micro_starting_board &board);
+
+//////////////////////////////////////////////////////////////////////////
+
 int64_t evaluate_chess_board(const chess_board &board);
 
 chess_move get_minimax_move_white(const chess_board &board);

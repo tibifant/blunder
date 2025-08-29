@@ -161,7 +161,6 @@ extern thread_local bool _ls_error_break;
 #define LS_UNLIKELY [[unlikely]]
 #define LS_LIKELY [[likely]]
 
-
 const char *lsResult_to_string(const lsResult result);
 bool _ls_error_handle_direct(const lsResult result, const char *expression, const char *file, const uint32_t line);
 bool _ls_error_handle_indirect(const lsResult result, const char *expression, const char *file, const uint32_t line);

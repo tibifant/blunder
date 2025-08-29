@@ -22,6 +22,7 @@ void perform_move(chess_board &board, list<chess_move> &moves, const ai_type fro
 void print_board(const chess_board &board);
 char read_char();
 lsResult read_start_position_from_file(const char *filename, chess_board &board);
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t count);
 chess_move get_move_from_input(const chess_board &board, list<chess_move> &moves);
 
 //////////////////////////////////////////////////////////////////////////
@@ -37,11 +38,11 @@ int32_t main(const int32_t argc, char **pArgv)
     return EXIT_FAILURE;
   }
 
-  run_testables();
-
   chess_board board = chess_board::get_starting_point();
   ai_type white_player = ait_player;
-  ai_type black_player = ait_complex;
+  ai_type black_player = ait_alphabeta;
+
+  bool runTests = false;
 
   for (size_t i = 1; i < (size_t)argc; i++)
   {
@@ -65,9 +66,14 @@ int32_t main(const int32_t argc, char **pArgv)
       white_player = ait_complex;
     else if (lsStringEquals("--complex-black", pArgv[i]))
       black_player = ait_complex;
+    else if (lsStringEquals("--run-tests", pArgv[i]))
+      runTests = true;
     else if (LS_FAILED(read_start_position_from_file(pArgv[i], board)))
       lsFail();
   }
+
+  if (runTests)
+    run_testables();
 
   // Set Working Directory.
   do
@@ -96,6 +102,12 @@ int32_t main(const int32_t argc, char **pArgv)
   } while (false);
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
+
+  const size_t count = 1024 * 16;
+  micro_starting_board *pHashMap = nullptr;
+  lsAllocZero(&pHashMap, count);
+
+  parse_fen_book("C:/data/common_openings.txt", pHashMap, count);
 
   list<chess_move> moves;
   print_board(board);
@@ -288,100 +300,95 @@ void perform_move(chess_board &board, list<chess_move> &moves, const ai_type ai)
 
 //////////////////////////////////////////////////////////////////////////
 
-bool is_upper_case(const char c)
-{
-  return 'A' <= c && c <= 'Z';
-}
-
 lsResult read_start_position_from_file(const char *filename, chess_board &board)
 {
   lsResult result = lsR_Success;
 
   char *fileContents = nullptr;
-  size_t fileSize;
+  size_t _unused;
 
   print_log_line("Trying to read starting Position from file: ", filename);
 
-  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &fileSize));
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContents, &_unused));
 
-  {
-    vec2i8 currentPos = vec2i8(0, 7);
-
-    for (size_t i = 0; i < fileSize; i++)
-    {
-      chess_piece_type piece = cpT_none;
-      bool isWhite = false;;
-
-      switch (fileContents[i])
-      {
-      case '.':
-      case ' ':
-        piece = cpT_none;
-        break;
-
-      case 'K':
-      case 'k':
-        piece = cpT_king;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'Q':
-      case 'q':
-        piece = cpT_queen;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'N':
-      case 'n':
-        piece = cpT_knight;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'B':
-      case 'b':
-        piece = cpT_bishop;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'R':
-      case 'r':
-        piece = cpT_rook;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case 'P':
-      case 'p':
-        piece = cpT_pawn;
-        isWhite = is_upper_case(fileContents[i]);
-        break;
-
-      case '\r':
-        continue;
-
-      case '\n':
-        currentPos.x = 0;
-        currentPos.y--;
-        continue;
-
-      default:
-        print_error_line("Unexpected Token in file: ", fileContents[i]);
-        lsFail();
-      }
-
-      lsAssert(currentPos.x < BoardWidth && currentPos.y < BoardWidth);
-
-      board[lsMin(currentPos, vec2i8(BoardWidth - 1, BoardWidth - 1))] = chess_piece(piece, isWhite);
-      currentPos.x++;
-    }
-
-    const chess_board startBoard = chess_board::get_starting_point();
-
-    for (size_t i = 0; i < LS_ARRAYSIZE(startBoard.board); i++)
-      if (board.board[i].piece != startBoard.board[i].piece)
-        board.board[i].hasMoved = true;
-
-  }
+  board = get_board_from_starting_position(fileContents);
 
 epilogue:
+  lsFreePtr(&fileContents);
+
+  return result;
+}
+
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t hashCount)
+{
+  lsResult result = lsR_Success;
+
+  print_log_line("Trying to read book from file: ", filename);
+
+  const size_t hashMask = (1ULL << lsHighestBit(hashCount)) - 1;
+  lsAssert(hashCount == hashMask + 1);
+  size_t collisions = 0;
+  size_t addedBoards = 0;
+  size_t duplicates = 0;
+  char *fileContentsOriginal = nullptr;
+  size_t fileSize;
+  const char *fileContents = nullptr;
+
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContentsOriginal, &fileSize));
+  fileContents = fileContentsOriginal;
+
+  lsZeroMemory(pHashBoards, hashCount);
+
+  {
+    while (addedBoards < hashCount)
+    {
+      if (*fileContents == '\0')
+        break;
+
+      chess_board b = get_board_from_fen(&fileContents);
+
+      while (*fileContents != '\n' && *fileContents != '\0')
+      {
+        fileContents++;
+      }
+
+      if (*fileContents == '\0')
+        break;
+
+      fileContents++;
+
+      const micro_starting_board board = get_mirco_starting_board(b);
+      const uint64_t hash = lsHash(board);
+      bool placed = false;
+
+      for (size_t i = 0; i < 16; i++)
+      {
+        const uint64_t maskedHash = (hash + i) & hashMask;
+
+        if (pHashBoards[maskedHash].is_empty())
+        {
+          pHashBoards[maskedHash] = board;
+          addedBoards++;
+          placed = true;
+          break;
+        }
+        else if (pHashBoards[maskedHash] == board)
+        {
+          duplicates++;
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed)
+        collisions++;
+    }
+  }
+
+  print("With hash map size ", hashCount, ": occupation: ", FF(Max(6))((addedBoards * 100.f) / hashCount), "% (", addedBoards, "), collisions: ", FF(Max(6))((collisions * 100.f) / hashCount), "% (", collisions, "), excluding ", duplicates, " duplicates (", FF(Max(6))(((addedBoards + duplicates) * 100.f) / (addedBoards + duplicates + collisions)), "% available)\n");
+
+epilogue:
+  lsFreePtr(&fileContentsOriginal);
+
   return result;
 }
