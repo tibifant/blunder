@@ -108,6 +108,8 @@ int32_t main(const int32_t argc, const char **pArgv)
 
   print("Blunder WebIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
+  starting_hash_boards_create();
+
   {
     crow::App<crow::CORSHandler> app;
 

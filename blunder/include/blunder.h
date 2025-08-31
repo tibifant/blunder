@@ -220,6 +220,8 @@ uint64_t lsHash(const micro_starting_board &board);
 micro_starting_board get_mirco_starting_board(const chess_board &board);
 uint64_t lsHash(const micro_starting_board &board);
 
+void starting_hash_boards_create();
+
 //////////////////////////////////////////////////////////////////////////
 
 int64_t evaluate_chess_board(const chess_board &board);

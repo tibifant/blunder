@@ -1,6 +1,7 @@
 #include "blunder.h"
 #include "testable.h"
 #include "local_list.h"
+#include "io.h"
 
 #include <conio.h>
 
@@ -891,6 +892,78 @@ on_board_parsed:
   return ret;
 }
 
+lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t hashCount)
+{
+  lsResult result = lsR_Success;
+
+  print_log_line("Trying to read book from file: ", filename);
+
+  const size_t hashMask = (1ULL << lsHighestBit(hashCount)) - 1;
+  lsAssert(hashCount == hashMask + 1);
+  size_t collisions = 0;
+  size_t addedBoards = 0;
+  size_t duplicates = 0;
+  char *fileContentsOriginal = nullptr;
+  size_t fileSize;
+  const char *fileContents = nullptr;
+
+  LS_ERROR_CHECK(lsReadFile(filename, &fileContentsOriginal, &fileSize));
+  fileContents = fileContentsOriginal;
+
+  lsZeroMemory(pHashBoards, hashCount);
+
+  {
+    while (addedBoards < hashCount)
+    {
+      if (*fileContents == '\0')
+        break;
+
+      chess_board b = get_board_from_fen(&fileContents);
+
+      while (*fileContents != '\n' && *fileContents != '\0')
+        fileContents++;
+
+      if (*fileContents == '\0')
+        break;
+
+      fileContents++;
+
+      const micro_starting_board board = get_mirco_starting_board(b);
+      const uint64_t hash = lsHash(board);
+      bool placed = false;
+
+      for (size_t i = 0; i < 16; i++)
+      {
+        const uint64_t maskedHash = (hash + i) & hashMask;
+
+        if (pHashBoards[maskedHash].is_empty())
+        {
+          pHashBoards[maskedHash] = board;
+          addedBoards++;
+          placed = true;
+          break;
+        }
+        else if (pHashBoards[maskedHash] == board)
+        {
+          duplicates++;
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed)
+        collisions++;
+    }
+  }
+
+  print("With hash map size ", hashCount, ": occupation: ", FF(Max(6))((addedBoards * 100.f) / hashCount), "% (", addedBoards, "), collisions: ", FF(Max(6))((collisions * 100.f) / hashCount), "% (", collisions, "), excluding ", duplicates, " duplicates (", FF(Max(6))(((addedBoards + duplicates) * 100.f) / (addedBoards + duplicates + collisions)), "% available)\n");
+
+epilogue:
+  lsFreePtr(&fileContentsOriginal);
+
+  return result;
+}
+
 inline void place_symmetric_last_row(chess_board &board, const chess_piece_type piece, const int8_t x)
 {
   board[vec2i8(x, 0)] = chess_piece(piece, true);
@@ -1337,6 +1410,15 @@ struct moves_with_score
 
 constexpr bool UseCache = false;
 
+constexpr size_t StartingBoardHashCount = 1024 * 16;
+micro_starting_board *pStartingBoardHashMap = nullptr;
+
+void starting_hash_boards_create()
+{
+  lsAllocZero(&pStartingBoardHashMap, StartingBoardHashCount);
+  parse_fen_book("C:/data/common_openings.txt", pStartingBoardHashMap, StartingBoardHashCount);
+}
+
 template <size_t MaxDepth>
 struct alpha_beta_minimax_cache
 {
@@ -1362,9 +1444,6 @@ struct alpha_beta_minimax_cache
   constexpr static size_t hashMask = hashValues - 1;
 
   chess_hash_board *pCache = nullptr;
-
-  size_t startingBoardHashCount = 0;
-  micro_starting_board *pHashBoards = nullptr;
 
   piece_move_map<true> pieceMovesWithNonCapture;
   piece_move_map<false> pieceMoves[2];
@@ -1546,8 +1625,8 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
       cache.currentMove[DepthIndex] = move;
 
       if constexpr (DepthIndex == 0)
-        if (micro_starting_board_find(after, cache.pHashBoards, cache.startingBoardHashCount))
-          return moves_with_score<MaxDepth>(move, score_with_depth(100000, DepthIndex));
+        if (micro_starting_board_find(after, pStartingBoardHashMap, StartingBoardHashCount))
+          return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(lsMaxValue<int64_t>(), DepthIndex));
 
       const moves_with_score<MaxDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, DepthIndex + 1>(after, alpha, beta, cache);
 
@@ -1608,16 +1687,13 @@ chess_move get_minimax_move_black(const chess_board &board)
 }
 
 template <bool IsWhite>
-chess_move get_alpha_beta_move(const chess_board &board, const micro_starting_board *pHashBoards, const size_t hashCount)
+chess_move get_alpha_beta_move(const chess_board &board)
 {
   constexpr size_t Depth = 6;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
 #endif
-
-  lsAssert(pHashBoards != nullptr);
-  lsAssert(hashCount > 0);
 
   alpha_beta_minimax_cache<Depth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
@@ -1719,6 +1795,12 @@ void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_ca
     ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), cache);
 
     print("\titerative deepen: ", Depth, " / ", MaxDepth, ": ", ret.score.score, '\n');
+
+    if (ret.score.score == lsMaxValue<int64_t>()) // Found move from opening book.
+    {
+      lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
+      return;
+    }
 
     if constexpr (MaxDepth > Depth)
       alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);

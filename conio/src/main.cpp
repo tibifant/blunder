@@ -72,9 +72,6 @@ int32_t main(const int32_t argc, char **pArgv)
       lsFail();
   }
 
-  if (runTests)
-    run_testables();
-
   // Set Working Directory.
   do
   {
@@ -103,11 +100,10 @@ int32_t main(const int32_t argc, char **pArgv)
 
   print("Blunder ConIO (built " __DATE__ " " __TIME__ ") running on ", cpu_info::GetCpuName(), ".\n");
 
-  const size_t count = 1024 * 16;
-  micro_starting_board *pHashMap = nullptr;
-  lsAllocZero(&pHashMap, count);
+  starting_hash_boards_create();
 
-  parse_fen_book("C:/data/common_openings.txt", pHashMap, count);
+  if (runTests)
+    run_testables();
 
   list<chess_move> moves;
   print_board(board);
@@ -315,78 +311,6 @@ lsResult read_start_position_from_file(const char *filename, chess_board &board)
 
 epilogue:
   lsFreePtr(&fileContents);
-
-  return result;
-}
-
-lsResult parse_fen_book(const char *filename, micro_starting_board *pHashBoards, const size_t hashCount)
-{
-  lsResult result = lsR_Success;
-
-  print_log_line("Trying to read book from file: ", filename);
-
-  const size_t hashMask = (1ULL << lsHighestBit(hashCount)) - 1;
-  lsAssert(hashCount == hashMask + 1);
-  size_t collisions = 0;
-  size_t addedBoards = 0;
-  size_t duplicates = 0;
-  char *fileContentsOriginal = nullptr;
-  size_t fileSize;
-  const char *fileContents = nullptr;
-
-  LS_ERROR_CHECK(lsReadFile(filename, &fileContentsOriginal, &fileSize));
-  fileContents = fileContentsOriginal;
-
-  lsZeroMemory(pHashBoards, hashCount);
-
-  {
-    while (addedBoards < hashCount)
-    {
-      if (*fileContents == '\0')
-        break;
-
-      chess_board b = get_board_from_fen(&fileContents);
-
-      while (*fileContents != '\n' && *fileContents != '\0')
-        fileContents++;
-
-      if (*fileContents == '\0')
-        break;
-
-      fileContents++;
-
-      const micro_starting_board board = get_mirco_starting_board(b);
-      const uint64_t hash = lsHash(board);
-      bool placed = false;
-
-      for (size_t i = 0; i < 16; i++)
-      {
-        const uint64_t maskedHash = (hash + i) & hashMask;
-
-        if (pHashBoards[maskedHash].is_empty())
-        {
-          pHashBoards[maskedHash] = board;
-          addedBoards++;
-          placed = true;
-          break;
-        }
-        else if (pHashBoards[maskedHash] == board)
-        {
-          duplicates++;
-          placed = true;
-          break;
-        }
-      }
-
-      if (!placed)
-        collisions++;
-    }
-  }
-
-  print("With hash map size ", hashCount, ": occupation: ", FF(Max(6))((addedBoards * 100.f) / hashCount), "% (", addedBoards, "), collisions: ", FF(Max(6))((collisions * 100.f) / hashCount), "% (", collisions, "), excluding ", duplicates, " duplicates (", FF(Max(6))(((addedBoards + duplicates) * 100.f) / (addedBoards + duplicates + collisions)), "% available)\n");
-
-epilogue:
-  lsFreePtr(&fileContentsOriginal);
 
   return result;
 }
