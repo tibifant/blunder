@@ -204,7 +204,7 @@ struct micro_starting_board
   uint8_t _unused : 1 = 0;
   uint8_t vals[192 / 8] = {}; // 192 bit
 
-  bool operator ==(const micro_starting_board &other)
+  bool operator ==(const micro_starting_board &other) const
   {
     return memcmp(this, &other, sizeof(*this)) == 0;
   }

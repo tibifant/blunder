@@ -1085,9 +1085,13 @@ uint64_t lsHash(const micro_starting_board &board)
 }
 
 
-bool micro_board_has(const chess_board &b, const micro_starting_board *pHashBoards)
+bool micro_starting_board_find(const chess_board &b, const micro_starting_board *pHashBoards, const size_t hashCount)
 {
+  lsAssert(pHashBoards != nullptr);
+  lsAssert(hashCount > 0);
+
   const micro_starting_board board = get_mirco_starting_board(b);
+  const size_t hashMask = (1ULL << lsHighestBit(hashCount)) - 1;
   const uint64_t hash = lsHash(board);
 
   for (size_t i = 0; i < 16; i++)
@@ -1359,6 +1363,7 @@ struct alpha_beta_minimax_cache
 
   chess_hash_board *pCache = nullptr;
 
+  size_t startingBoardHashCount = 0;
   micro_starting_board *pHashBoards = nullptr;
 
   piece_move_map<true> pieceMovesWithNonCapture;
@@ -1541,7 +1546,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
       cache.currentMove[DepthIndex] = move;
 
       if constexpr (DepthIndex == 0)
-        if (micro_board_has(after, cache.pHashBoards))
+        if (micro_starting_board_find(after, cache.pHashBoards, cache.startingBoardHashCount))
           return moves_with_score<MaxDepth>(move, score_with_depth(100000, DepthIndex));
 
       const moves_with_score<MaxDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, DepthIndex + 1>(after, alpha, beta, cache);
@@ -1603,13 +1608,16 @@ chess_move get_minimax_move_black(const chess_board &board)
 }
 
 template <bool IsWhite>
-chess_move get_alpha_beta_move(const chess_board &board)
+chess_move get_alpha_beta_move(const chess_board &board, const micro_starting_board *pHashBoards, const size_t hashCount)
 {
   constexpr size_t Depth = 6;
 
 #ifdef _DEBUG
   const int64_t before = lsGetCurrentTimeNs();
 #endif
+
+  lsAssert(pHashBoards != nullptr);
+  lsAssert(hashCount > 0);
 
   alpha_beta_minimax_cache<Depth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
