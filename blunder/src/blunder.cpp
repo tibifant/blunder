@@ -1562,18 +1562,20 @@ score_with_depth quiescence_alpha_beta_step(const chess_board &board, score_with
 
 constexpr bool UseQuiescenceSearch = true;
 
-template <bool FindMin, size_t MaxDepth, size_t DepthIndex = 0>
-moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_depth alpha, score_with_depth beta, alpha_beta_minimax_cache<MaxDepth> &cache)
+template <bool FindMin, size_t MaxDepth, size_t CacheDepth, size_t DepthIndex = 0>
+moves_with_score<CacheDepth> alpha_beta_step(const chess_board &board, score_with_depth alpha, score_with_depth beta, alpha_beta_minimax_cache<CacheDepth> &cache)
 {
   static_assert(DepthIndex <= MaxDepth);
 
+  constexpr size_t CacheDepthIndex = (CacheDepth - MaxDepth) + DepthIndex;
+
   if constexpr (FindMin)
     if (board.hasWhiteWon)
-      return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(PieceScores[cpT_king], DepthIndex));
+      return moves_with_score<CacheDepth>(cache.currentMove, score_with_depth(PieceScores[cpT_king], CacheDepthIndex));
 
   if constexpr (!FindMin)
     if (board.hasBlackWon)
-      return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(-PieceScores[cpT_king], DepthIndex));
+      return moves_with_score<CacheDepth>(cache.currentMove, score_with_depth(-PieceScores[cpT_king], CacheDepthIndex));
 
   if constexpr (DepthIndex == MaxDepth)
   {
@@ -1583,20 +1585,20 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
     if constexpr (UseQuiescenceSearch)
       score = quiescence_alpha_beta_step<!FindMin>(board, alpha, beta, cache);
     else
-      score = score_with_depth(evaluate_chess_board(board), DepthIndex);
+      score = score_with_depth(evaluate_chess_board(board), CacheDepthIndex);
 
-    const moves_with_score<MaxDepth> ret = moves_with_score<MaxDepth>(cache.currentMove, score);
+    const moves_with_score<CacheDepth> ret = moves_with_score<CacheDepth>(cache.currentMove, score);
 
 #ifdef _DEBUG
     if (ret.score > cache.highestScore)
     {
-      lsMemcpy(cache.highestMove, cache.currentMove, MaxDepth);
+      lsMemcpy(cache.highestMove, cache.currentMove, CacheDepth);
       cache.highestScore = ret.score;
     }
 
     if (ret.score < cache.lowestScore)
     {
-      lsMemcpy(cache.lowestMove, cache.currentMove, MaxDepth);
+      lsMemcpy(cache.lowestMove, cache.currentMove, CacheDepth);
       cache.lowestScore = ret.score;
     }
 #endif
@@ -1612,8 +1614,8 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
 
     list<chess_move> &moves = cache.movesAtLevel[DepthIndex];
     LS_DEBUG_ERROR_ASSERT(get_all_valid_ordered_moves(moves, board, cache.pieceMoves[0], cache.pieceMovesWithNonCapture));
-    moves_with_score<MaxDepth> ret;
-    ret.score = FindMin ? score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth) : score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth);
+    moves_with_score<CacheDepth> ret;
+    ret.score = FindMin ? score_with_depth(lsMaxValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth) : score_with_depth(lsMinValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth);
 
     for (const chess_move move : moves)
     {
@@ -1622,17 +1624,17 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
 #endif
 
       const chess_board after = perform_move(board, move);
-      cache.currentMove[DepthIndex] = move;
+      cache.currentMove[CacheDepthIndex] = move;
 
       if constexpr (DepthIndex == 0)
         if (micro_starting_board_find(after, pStartingBoardHashMap, StartingBoardHashCount))
-          return moves_with_score<MaxDepth>(cache.currentMove, score_with_depth(lsMaxValue<int64_t>(), DepthIndex));
+          return moves_with_score<CacheDepth>(cache.currentMove, score_with_depth(lsMaxValue<int64_t>(), CacheDepthIndex));
 
-      const moves_with_score<MaxDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, DepthIndex + 1>(after, alpha, beta, cache);
+      const moves_with_score<CacheDepth> moveRating = alpha_beta_step<!FindMin, MaxDepth, CacheDepth, DepthIndex + 1>(after, alpha, beta, cache);
 
 #ifdef _DEBUG
-      cache.stepMin[DepthIndex] = lsMin(moveRating.score, cache.stepMin[DepthIndex]);
-      cache.stepMax[DepthIndex] = lsMax(moveRating.score, cache.stepMax[DepthIndex]);
+      cache.stepMin[CacheDepthIndex] = lsMin(moveRating.score, cache.stepMin[CacheDepthIndex]);
+      cache.stepMax[CacheDepthIndex] = lsMax(moveRating.score, cache.stepMax[CacheDepthIndex]);
 #endif
 
       if constexpr (FindMin)
@@ -1664,7 +1666,7 @@ moves_with_score<MaxDepth> alpha_beta_step(const chess_board &board, score_with_
     }
 
     const int64_t end = __rdtsc();
-    cache.ticksPerLayer[DepthIndex] += end - begin;
+    cache.ticksPerLayer[CacheDepthIndex] += end - begin;
 
     return ret;
   }
@@ -1698,7 +1700,7 @@ chess_move get_alpha_beta_move(const chess_board &board)
   alpha_beta_minimax_cache<Depth> cache;
   LS_DEBUG_ERROR_ASSERT(alpha_beta_minimax_cache_create(cache));
 
-  const moves_with_score<Depth> moveInfo = alpha_beta_step<!IsWhite>(board, score_with_depth(lsMinValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), cache);
+  const moves_with_score<Depth> moveInfo = alpha_beta_step<!IsWhite, Depth>(board, score_with_depth(lsMinValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), Depth + cache.MaxQuiescenceDepth), cache);
 
 #ifdef _DEBUG
   const int64_t after = lsGetCurrentTimeNs();
@@ -1764,59 +1766,59 @@ chess_move get_alpha_beta_move_black(const chess_board &board)
 
 //////////////////////////////////////////////////////////////////////////
 
-template <size_t Depth, size_t MaxDepth, bool FindMin>
-moves_with_score<MaxDepth> alpha_beta_aspiration(const chess_board &board, const score_with_depth guess, alpha_beta_minimax_cache<MaxDepth> &cache)
+template <bool FindMin, size_t CacheDepth, size_t Depth>
+moves_with_score<CacheDepth> alpha_beta_aspiration(const chess_board &board, const score_with_depth guess, alpha_beta_minimax_cache<CacheDepth> &cache)
 {
   constexpr int64_t delta = 50;
   const score_with_depth alpha = score_with_depth(guess.score - delta, guess.depth);
   const score_with_depth beta = score_with_depth(guess.score + delta, guess.depth);
 
-  moves_with_score<MaxDepth> ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, beta, cache);
+  moves_with_score<CacheDepth> ret = alpha_beta_step<FindMin, Depth>(board, alpha, beta, cache);
 
-  print("\taspiration: ", Depth, " / ", MaxDepth, ": ", ret.score.score, " (", alpha.score, " ~ ", beta.score, ")");
+  print("\taspiration: ", Depth, " / ", CacheDepth, ": ", ret.score.score, " (", alpha.score, " ~ ", beta.score, ")");
 
   if (ret.score <= alpha)
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), beta, cache);
+    ret = alpha_beta_step<FindMin, Depth>(board, score_with_depth(lsMinValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth), beta, cache);
   else if (ret.score >= beta)
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, alpha, score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), cache);
+    ret = alpha_beta_step<FindMin, Depth>(board, alpha, score_with_depth(lsMaxValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth), cache);
 
   print(" => ", ret.score.score, '\n');
 
   return ret;
 }
 
-template <bool FindMin, size_t MaxDepth, size_t Depth = 1>
-void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_cache<MaxDepth> &cache, moves_with_score<MaxDepth> &ret)
+template <bool FindMin, size_t CacheDepth, size_t Depth = 1>
+void alpha_beta_iterative_deepen(const chess_board &board, alpha_beta_minimax_cache<CacheDepth> &cache, moves_with_score<CacheDepth> &ret)
 {
   static_assert(Depth > 0);
 
   if constexpr (Depth == 1)
   {
-    ret = alpha_beta_step<FindMin, MaxDepth, MaxDepth - Depth>(board, score_with_depth(lsMinValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), MaxDepth + cache.MaxQuiescenceDepth), cache);
+    ret = alpha_beta_step<FindMin, Depth>(board, score_with_depth(lsMinValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth), score_with_depth(lsMaxValue<int64_t>(), CacheDepth + cache.MaxQuiescenceDepth), cache);
 
-    print("\titerative deepen: ", Depth, " / ", MaxDepth, ": ", ret.score.score, '\n');
+    print("\titerative deepen: ", Depth, " / ", CacheDepth, ": ", ret.score.score, '\n');
 
     if (ret.score.score == lsMaxValue<int64_t>()) // Found move from opening book.
     {
-      lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
+      lsMemmove(ret.moves, ret.moves + CacheDepth - (Depth - 1), 1);
       return;
     }
 
-    if constexpr (MaxDepth > Depth)
-      alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
+    if constexpr (CacheDepth > Depth)
+      alpha_beta_iterative_deepen<FindMin, CacheDepth, Depth + 1>(board, cache, ret);
   }
   else
   {
     if (lsAbs(ret.score.score) >= PieceScores[cpT_king] && ret.score.depth <= Depth)
     {
-      lsMemmove(ret.moves, ret.moves + MaxDepth - (Depth - 1), 1);
+      lsMemmove(ret.moves, ret.moves + CacheDepth - (Depth - 1), 1);
       return;
     }
 
-    ret = alpha_beta_aspiration<Depth, MaxDepth, FindMin>(board, ret.score, cache);
+    ret = alpha_beta_aspiration<FindMin, CacheDepth, Depth>(board, ret.score, cache);
 
-    if constexpr (MaxDepth > Depth)
-      alpha_beta_iterative_deepen<FindMin, MaxDepth, Depth + 1>(board, cache, ret);
+    if constexpr (CacheDepth > Depth)
+      alpha_beta_iterative_deepen<FindMin, CacheDepth, Depth + 1>(board, cache, ret);
   }
 }
 
