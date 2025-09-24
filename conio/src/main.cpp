@@ -108,6 +108,14 @@ int32_t main(const int32_t argc, char **pArgv)
   list<chess_move> moves;
   print_board(board);
 
+  if (!board.isWhitesTurn)
+  {
+    perform_move<false>(board, moves, black_player);
+
+    if (board.hasBlackWon)
+      goto end_of_game;
+  }
+
   while (true)
   {
     perform_move<true>(board, moves, white_player);
@@ -121,6 +129,7 @@ int32_t main(const int32_t argc, char **pArgv)
       break;
   }
 
+end_of_game:
   print(board.hasBlackWon ? "Black" : "White", " has won the game!\n");
 
   return EXIT_SUCCESS;

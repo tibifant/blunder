@@ -123,6 +123,8 @@ template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
 auto add_valid_move(const vec2i8 origin, const vec2i8 destination, const chess_board &board, TParam &param, [[maybe_unused]] const chess_move_type type)
 {
+  lsAssert(type != cmt_invalid);
+
   if (destination.x >= 0 && destination.x < BoardWidth && destination.y >= 0 && destination.y < BoardWidth && (!board[destination].piece || board[destination].isWhite != board.isWhitesTurn))
     return TFunc(param, chess_move(origin, destination, type), board);
   else
@@ -762,6 +764,11 @@ chess_board get_board_from_starting_position(const char *startingPosition)
     if ((currentPos.x == 8 && currentPos.y == 0) || currentPos.y < 0)
       break;
   }
+
+  i++;
+
+  if (startingPosition[i] == 'b')
+    ret.isWhitesTurn = false;
 
   const chess_board startBoard = chess_board::get_starting_point();
 
@@ -1622,6 +1629,9 @@ moves_with_score<CacheDepth> alpha_beta_step(const chess_board &board, score_wit
 #ifdef _DEBUG
       cache.nodesVisited++;
 #endif
+
+      if (move.startX == 5 && move.startY == 2 && move.targetX == 1 && move.targetY == 7 || move.moveType == cmt_invalid)
+        __debugbreak();
 
       const chess_board after = perform_move(board, move);
       cache.currentMove[CacheDepthIndex] = move;
