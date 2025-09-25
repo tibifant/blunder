@@ -425,18 +425,42 @@ auto get_all_valid_piece_moves(const chess_board &board, TParam &param)
   return result;
 }
 
+chess_board flip_board(const chess_board &board)
+{
+  chess_board ret;
+  ret.hasBlackWon = board.hasWhiteWon;
+  ret.hasWhiteWon = board.hasBlackWon;
+  ret.isWhitesTurn = (uint8_t)!board.isWhitesTurn;
+
+  int8_t j = BoardWidth * BoardWidth;
+  for (size_t i = 0; i < BoardWidth * BoardWidth; i++)
+  {
+    j--;
+    lsAssert(j >= 0);
+    ret.board[j] = board.board[i];
+    ret.board[j].isWhite = (uint8_t)!board.board[i].isWhite;
+  }
+
+  return ret;
+}
+
 template <auto TFunc, auto TResultNop, typename TParam>
   requires TFuncIsValid<TFunc, TResultNop, TParam>
 auto get_all_valid_moves(const chess_board &board, TParam &param)
 {
   auto result = TResultNop;
 
-  if (is_cancel(result = get_all_valid_piece_moves<cpT_pawn, TFunc, TResultNop, TParam>(board, param)) ||
-    is_cancel(result = get_all_valid_piece_moves<cpT_king, TFunc, TResultNop, TParam>(board, param)) ||
-    is_cancel(result = get_all_valid_piece_moves<cpT_queen, TFunc, TResultNop, TParam>(board, param)) ||
-    is_cancel(result = get_all_valid_piece_moves<cpT_rook, TFunc, TResultNop, TParam>(board, param)) ||
-    is_cancel(result = get_all_valid_piece_moves<cpT_bishop, TFunc, TResultNop, TParam>(board, param)) ||
-    is_cancel(result = get_all_valid_piece_moves<cpT_knight, TFunc, TResultNop, TParam>(board, param)))
+  chess_board b = board;
+
+  if (!board.isWhitesTurn)
+    b = flip_board(board);
+
+  if (is_cancel(result = get_all_valid_piece_moves<cpT_pawn, TFunc, TResultNop, TParam>(b, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_king, TFunc, TResultNop, TParam>(b, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_queen, TFunc, TResultNop, TParam>(b, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_rook, TFunc, TResultNop, TParam>(b, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_bishop, TFunc, TResultNop, TParam>(b, param)) ||
+    is_cancel(result = get_all_valid_piece_moves<cpT_knight, TFunc, TResultNop, TParam>(b, param)))
     return result;
 
   return result;
@@ -564,8 +588,13 @@ __forceinline void assert_move_type(const chess_move move, const chess_move_type
 #endif
 }
 
-chess_board perform_move(const chess_board &board, const chess_move move)
+chess_board perform_move(const chess_board &b, const chess_move move)
 {
+  chess_board board = b;
+
+  if (!b.isWhitesTurn)
+    board = flip_board(b);
+
   chess_board ret = board;
   ret.isWhitesTurn = (uint8_t)!board.isWhitesTurn;
 
@@ -675,6 +704,9 @@ chess_board perform_move(const chess_board &board, const chess_move move)
 
   origin.hasMoved = true;
   target = std::move(origin);
+
+  if (!b.isWhitesTurn)
+    return flip_board(ret);
 
   return ret;
 }
@@ -1886,6 +1918,7 @@ chess_move get_complex_move(const chess_board &board)
   print('\n');
 #endif
 
+  lsAssert(moveInfo.moves[0].moveType != cmt_invalid);
   return moveInfo.moves[0];
 }
 
