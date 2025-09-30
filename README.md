@@ -1,19 +1,16 @@
 # Blunder
 
-## A Chess Engine written in C/C++
+## A Simple Chess Engine written in C++
 
 - Minimax-Algorithm with Alpha-Beta-Pruning
 - Quiescence Search
 - Move Ordering (MVV/LVA)
 - Iterative Deepening with Aspiration Windows
+- HTTP API via crow with sample 3D-Web-UI
+- Command Line based UI
 
-Playable as **Console-Application** or via **3D-Web-UI**
-
-## How to build the project:
-- Run `create_project.bat`
-- Open the solution (`blunder.sln`) in Visual Studio 2022
-- Build the solution (Build > Build Solution)
-
-## How to run the server:
-- Execute `builds/bin/webioD.exe` (Debug) / `builds/bin/webio.exe` (Release) 
-- Queries will be processed on port `21110` 
+### How to build the project:
+```bat
+create_project.bat
+MSBuild /p:Configuration=Release /nologo /v:m
+```
